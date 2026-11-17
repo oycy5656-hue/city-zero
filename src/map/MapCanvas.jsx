@@ -1,0 +1,532 @@
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react'
+import { DISTRICT_BY_ID, WORLD } from '../data/city.js'
+import { hitTestBuildings } from './generator.js'
+import {
+  MAX_SCALE,
+  MIN_SCALE,
+  cameraBounds,
+  clampCamera,
+  drawMap,
+  drawMinimap,
+  fitCamera,
+  minimapToWorld,
+  screenToWorld,
+  zoomCameraAt,
+} from './renderer.js'
+
+function formatCoord(value) {
+  return `${value >= 0 ? '+' : ''}${(value / 1000).toFixed(2)}`
+}
+
+function formatZoom(scale) {
+  const denominator = Math.round(1 / (scale * 0.00028))
+  return `1:${denominator.toLocaleString('zh-CN')}`
+}
+
+const MapCanvas = forwardRef(function MapCanvas(
+  {
+    data,
+    selectedDistrict,
+    onSelectDistrict,
+    selectedPoi,
+    onSelectPoi,
+    layers,
+    focusRequest,
+  },
+  ref,
+) {
+  const wrapRef = useRef(null)
+  const canvasRef = useRef(null)
+  const miniRef = useRef(null)
+  const cameraRef = useRef(null)
+  const sizeRef = useRef({ width: 0, height: 0, dpr: 1 })
+  const pointersRef = useRef(new Map())
+  const dragRef = useRef(null)
+  const pinchRef = useRef(null)
+  const animRef = useRef(null)
+  const hoverRef = useRef(null)
+  const hoveredIdRef = useRef(null)
+  const lastHudRef = useRef(0)
+  const [hud, setHud] = useState({ x: 0, y: 0, zoom: '1:24,000' })
+  const [hoverInfo, setHoverInfo] = useState(null)
+  const [scaleLabel, setScaleLabel] = useState(1)
+
+  const setCamera = useCallback((camera) => {
+    const { width, height } = sizeRef.current
+    cameraRef.current = clampCamera(camera, width, height)
+  }, [])
+
+  const focusDistrict = useCallback(
+    (districtId, animate = true) => {
+      const district = DISTRICT_BY_ID[districtId]
+      if (!district || !cameraRef.current) return
+      const { width, height } = sizeRef.current
+      const targetScale = Math.max(cameraRef.current.scale, 0.34)
+      const target = clampCamera(
+        { x: district.centroid[0], y: district.centroid[1], scale: targetScale },
+        width,
+        height,
+      )
+      if (!animate) {
+        cameraRef.current = target
+        return
+      }
+      animRef.current = {
+        from: { ...cameraRef.current },
+        to: target,
+        start: performance.now(),
+        duration: 620,
+      }
+    },
+    [],
+  )
+
+  const resetView = useCallback(() => {
+    const { width, height } = sizeRef.current
+    const target = fitCamera(width, height)
+    animRef.current = {
+      from: { ...cameraRef.current },
+      to: target,
+      start: performance.now(),
+      duration: 620,
+    }
+  }, [])
+
+  const zoomBy = useCallback((factor) => {
+    if (!cameraRef.current) return
+    const { width, height } = sizeRef.current
+    const camera = cameraRef.current
+    animRef.current = null
+    cameraRef.current = clampCamera(
+      { ...camera, scale: camera.scale * factor },
+      width,
+      height,
+    )
+  }, [])
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focusDistrict,
+      resetView,
+      zoomBy,
+      getCamera: () => cameraRef.current,
+    }),
+    [focusDistrict, resetView, zoomBy],
+  )
+
+  // Resize and initialize the camera.
+  useEffect(() => {
+    const wrap = wrapRef.current
+    const canvas = canvasRef.current
+    const mini = miniRef.current
+    if (!wrap || !canvas || !mini) return
+    const resize = () => {
+      const rect = wrap.getBoundingClientRect()
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      const width = Math.max(1, rect.width)
+      const height = Math.max(1, rect.height)
+      sizeRef.current = { width, height, dpr }
+      canvas.width = Math.round(width * dpr)
+      canvas.height = Math.round(height * dpr)
+      canvas.style.width = `${width}px`
+      canvas.style.height = `${height}px`
+      mini.width = Math.round(230 * dpr)
+      mini.height = Math.round(160 * dpr)
+      mini.style.width = '230px'
+      mini.style.height = '160px'
+      if (!cameraRef.current) {
+        cameraRef.current = fitCamera(width, height)
+      } else {
+        cameraRef.current = clampCamera(cameraRef.current, width, height)
+      }
+    }
+    resize()
+    const observer = new ResizeObserver(resize)
+    observer.observe(wrap)
+    return () => observer.disconnect()
+  }, [])
+
+  // Focus requests coming from the district list.
+  useEffect(() => {
+    if (!focusRequest?.districtId) return
+    focusDistrict(focusRequest.districtId)
+  }, [focusRequest, focusDistrict])
+
+  // Main render loop.
+  useEffect(() => {
+    let raf = 0
+    let disposed = false
+    const canvas = canvasRef.current
+    const mini = miniRef.current
+    if (!canvas || !mini) return
+    const ctx = canvas.getContext('2d')
+    const miniCtx = mini.getContext('2d')
+
+    const frame = (time) => {
+      if (disposed) return
+      const camera = cameraRef.current
+      const { width, height, dpr } = sizeRef.current
+      if (camera && width > 0) {
+        if (animRef.current) {
+          const anim = animRef.current
+          const progress = Math.min(1, (time - anim.start) / anim.duration)
+          const eased = 1 - Math.pow(1 - progress, 3)
+          cameraRef.current = {
+            x: anim.from.x + (anim.to.x - anim.from.x) * eased,
+            y: anim.from.y + (anim.to.y - anim.from.y) * eased,
+            scale: anim.from.scale + (anim.to.scale - anim.from.scale) * eased,
+          }
+          if (progress >= 1) {
+            cameraRef.current = clampCamera(cameraRef.current, width, height)
+            animRef.current = null
+          }
+        }
+
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+        drawMap(ctx, data, cameraRef.current, width, height, {
+          selectedDistrict,
+          selectedPoi,
+          hoveredBuilding: hoveredIdRef.current,
+          layers,
+          time: time / 1000,
+          grid: layers.grid,
+          districts: layers.districts,
+          pois: layers.pois,
+          traffic: layers.traffic,
+          scaleRight: width < 900 ? 20 : 366,
+        })
+
+        miniCtx.setTransform(dpr, 0, 0, dpr, 0, 0)
+        drawMinimap(miniCtx, data, cameraRef.current, 230, 160, width, height)
+
+        if (time - lastHudRef.current > 120) {
+          lastHudRef.current = time
+          setHud({
+            x: cameraRef.current.x,
+            y: cameraRef.current.y,
+            zoom: formatZoom(cameraRef.current.scale),
+          })
+          setScaleLabel(cameraRef.current.scale)
+        }
+      }
+      raf = requestAnimationFrame(frame)
+    }
+    raf = requestAnimationFrame(frame)
+    return () => {
+      disposed = true
+      cancelAnimationFrame(raf)
+    }
+  }, [data, selectedDistrict, selectedPoi, layers])
+
+  const hitTest = (screenX, screenY) => {
+    if (!cameraRef.current) return
+    const { width, height } = sizeRef.current
+    const world = screenToWorld(cameraRef.current, width, height, screenX, screenY)
+
+    // POIs win over everything else.
+    let closest = null
+    let closestDistance = 18
+    for (const poi of data.pois) {
+      const sx = (poi.x - cameraRef.current.x) * cameraRef.current.scale + width / 2
+      const sy = (poi.y - cameraRef.current.y) * cameraRef.current.scale + height / 2
+      const distance = Math.hypot(screenX - sx, screenY - sy)
+      if (distance < closestDistance) {
+        closest = poi
+        closestDistance = distance
+      }
+    }
+    if (closest) {
+      onSelectPoi(closest)
+      return
+    }
+
+    if (cameraRef.current.scale > 0.36) {
+      const building = hitTestBuildings(data, world.x, world.y)
+      if (building) {
+        onSelectPoi(null)
+        setHoverInfo({
+          x: screenX,
+          y: screenY,
+          title: `建筑 ${String(building.id).padStart(5, '0')}`,
+          lines: [
+            `${DISTRICT_BY_ID[building.district]?.name || '未知城区'} · ${building.type}`,
+            `高度 ${building.height} m`,
+            `${Math.round(building.w)} × ${Math.round(building.h)} m`,
+          ],
+        })
+        return
+      }
+    }
+
+    const district = [...data.districts].reverse().find((item) => {
+      let inside = false
+      const poly = item.poly
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const xi = poly[i][0]
+        const yi = poly[i][1]
+        const xj = poly[j][0]
+        const yj = poly[j][1]
+        const intersect = yi > world.y !== yj > world.y && world.x < ((xj - xi) * (world.y - yi)) / (yj - yi) + xi
+        if (intersect) inside = !inside
+      }
+      return inside
+    })
+    if (district) {
+      onSelectDistrict(district.id)
+      setHoverInfo(null)
+    }
+  }
+
+  const onPointerDown = (event) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const point = { x: event.clientX - rect.left, y: event.clientY - rect.top }
+    pointersRef.current.set(event.pointerId, point)
+    canvas.setPointerCapture(event.pointerId)
+    animRef.current = null
+
+    if (pointersRef.current.size === 1) {
+      dragRef.current = {
+        startX: point.x,
+        startY: point.y,
+        camera: { ...cameraRef.current },
+        moved: false,
+        pointerId: event.pointerId,
+      }
+      pinchRef.current = null
+    } else if (pointersRef.current.size === 2) {
+      const [a, b] = [...pointersRef.current.values()]
+      pinchRef.current = {
+        distance: Math.hypot(b.x - a.x, b.y - a.y),
+        midpoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+        camera: { ...cameraRef.current },
+      }
+      dragRef.current = null
+    }
+  }
+
+  const onPointerMove = (event) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const point = { x: event.clientX - rect.left, y: event.clientY - rect.top }
+    const { width, height } = sizeRef.current
+
+    // Hover inspection.
+    if (cameraRef.current && cameraRef.current.scale > 0.4 && pointersRef.current.size === 0) {
+      const world = screenToWorld(cameraRef.current, width, height, point.x, point.y)
+      const building = hitTestBuildings(data, world.x, world.y)
+      hoveredIdRef.current = building?.id ?? null
+      if (building) {
+        setHoverInfo({
+          x: point.x,
+          y: point.y,
+          title: `建筑 ${String(building.id).padStart(5, '0')}`,
+          lines: [
+            `${DISTRICT_BY_ID[building.district]?.name || '未知城区'} · ${building.type}`,
+            `高度 ${building.height} m`,
+          ],
+        })
+      } else {
+        setHoverInfo(null)
+      }
+    }
+
+    if (!pointersRef.current.has(event.pointerId)) return
+    pointersRef.current.set(event.pointerId, point)
+
+    if (pointersRef.current.size === 2 && pinchRef.current) {
+      const [a, b] = [...pointersRef.current.values()]
+      const distance = Math.hypot(b.x - a.x, b.y - a.y)
+      const midpoint = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+      const pinch = pinchRef.current
+      const ratio = distance / Math.max(1, pinch.distance)
+      const before = screenToWorld(pinch.camera, width, height, pinch.midpoint.x, pinch.midpoint.y)
+      const next = {
+        ...pinch.camera,
+        scale: Math.max(MIN_SCALE, Math.min(MAX_SCALE, pinch.camera.scale * ratio)),
+      }
+      const after = screenToWorld(next, width, height, midpoint.x, midpoint.y)
+      next.x += before.x - after.x
+      next.y += before.y - after.y
+      cameraRef.current = clampCamera(next, width, height)
+      return
+    }
+
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    const dx = point.x - drag.startX
+    const dy = point.y - drag.startY
+    if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true
+    cameraRef.current = clampCamera(
+      {
+        ...drag.camera,
+        x: drag.camera.x - dx / drag.camera.scale,
+        y: drag.camera.y - dy / drag.camera.scale,
+      },
+      width,
+      height,
+    )
+  }
+
+  const onPointerUp = (event) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const point = { x: event.clientX - rect.left, y: event.clientY - rect.top }
+    const drag = dragRef.current
+    if (drag && drag.pointerId === event.pointerId && !drag.moved) {
+      hitTest(point.x, point.y)
+    }
+    pointersRef.current.delete(event.pointerId)
+    if (pointersRef.current.size === 0) {
+      dragRef.current = null
+      pinchRef.current = null
+    } else if (pointersRef.current.size === 1) {
+      const [remaining] = [...pointersRef.current.entries()]
+      dragRef.current = {
+        startX: remaining[1].x,
+        startY: remaining[1].y,
+        camera: { ...cameraRef.current },
+        moved: true,
+        pointerId: remaining[0],
+      }
+      pinchRef.current = null
+    }
+  }
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const onWheel = (event) => {
+      event.preventDefault()
+      if (!cameraRef.current) return
+      const rect = canvas.getBoundingClientRect()
+      const sx = event.clientX - rect.left
+      const sy = event.clientY - rect.top
+      const { width, height } = sizeRef.current
+      const factor = Math.exp(-event.deltaY * 0.0014)
+      animRef.current = null
+      cameraRef.current = zoomCameraAt(cameraRef.current, width, height, sx, sy, factor)
+    }
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+    return () => canvas.removeEventListener('wheel', onWheel)
+  }, [])
+
+  const onMiniPointer = (event) => {
+    const mini = miniRef.current
+    if (!mini || !cameraRef.current) return
+    const rect = mini.getBoundingClientRect()
+    const world = minimapToWorld(event.clientX - rect.left, event.clientY - rect.top, 230, 160)
+    const { width, height } = sizeRef.current
+    cameraRef.current = clampCamera(
+      { ...cameraRef.current, x: world.x, y: world.y },
+      width,
+      height,
+    )
+    animRef.current = null
+  }
+
+  const onDoubleClick = (event) => {
+    if (!cameraRef.current) return
+    const canvas = canvasRef.current
+    const rect = canvas.getBoundingClientRect()
+    const { width, height } = sizeRef.current
+    animRef.current = null
+    cameraRef.current = zoomCameraAt(
+      cameraRef.current,
+      width,
+      height,
+      event.clientX - rect.left,
+      event.clientY - rect.top,
+      1.7,
+    )
+  }
+
+  return (
+    <div className="map-stage" ref={wrapRef}>
+      <canvas
+        ref={canvasRef}
+        className="map-canvas"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onPointerLeave={() => {
+          hoveredIdRef.current = null
+          setHoverInfo(null)
+        }}
+        onDoubleClick={onDoubleClick}
+      />
+      <div className="map-scanlines" aria-hidden="true" />
+      <div className="map-vignette" aria-hidden="true" />
+
+      <div className="map-hud map-hud--top">
+        <span>GRID / {WORLD.areaKm2} KM²</span>
+        <span className="map-hud__divider" />
+        <span>{data.stats.buildings.toLocaleString('zh-CN')} BUILDINGS</span>
+        <span className="map-hud__divider" />
+        <span>{data.districts.length} SECTORS</span>
+      </div>
+
+      <div className="map-hud map-hud--bottom">
+        <span>X {formatCoord(hud.x)}</span>
+        <span>Y {formatCoord(hud.y)}</span>
+        <span className="map-hud__divider" />
+        <span>{hud.zoom}</span>
+        <span className="map-hud__divider" />
+        <span>{Math.round(scaleLabel * 100)}%</span>
+      </div>
+
+      <div className="map-compass" aria-hidden="true">
+        <span>N</span>
+        <i />
+      </div>
+
+      <div className="map-tools">
+        <button onClick={() => zoomBy(1.45)} aria-label="放大">+</button>
+        <button onClick={() => zoomBy(1 / 1.45)} aria-label="缩小">−</button>
+        <button onClick={resetView} aria-label="重置视图">⌂</button>
+      </div>
+
+      <canvas
+        ref={miniRef}
+        className="minimap"
+        onPointerDown={onMiniPointer}
+        onPointerMove={(event) => {
+          if (event.buttons === 1) onMiniPointer(event)
+        }}
+      />
+      <div className="minimap-label">SECTOR OVERVIEW</div>
+
+      {hoverInfo && (
+        <div
+          className="map-tooltip"
+          style={{ left: Math.min(hoverInfo.x + 14, sizeRef.current.width - 210), top: hoverInfo.y + 14 }}
+        >
+          <strong>{hoverInfo.title}</strong>
+          {hoverInfo.lines.map((line) => (
+            <span key={line}>{line}</span>
+          ))}
+        </div>
+      )}
+
+      <div className="map-hint">
+        <span>拖拽平移</span>
+        <span>滚轮缩放</span>
+        <span>双击放大</span>
+      </div>
+    </div>
+  )
+})
+
+export default MapCanvas
