@@ -243,7 +243,7 @@ const MapCanvas = forwardRef(function MapCanvas(
         }
       }
       candidates.sort((a, b) => a.distance - b.distance)
-      for (const candidate of candidates.slice(0, 5)) {
+      for (const candidate of candidates.slice(0, 8)) {
         streamRef.current.loading.add(candidate.key)
         fetchTile(candidate.tx, candidate.ty, controller.signal)
           .then((tile) => {
@@ -260,7 +260,7 @@ const MapCanvas = forwardRef(function MapCanvas(
       }
     }
 
-    const timer = window.setInterval(loadVisible, 500)
+    const timer = window.setInterval(loadVisible, 400)
     loadVisible()
     return () => {
       stopped = true

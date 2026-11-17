@@ -401,7 +401,7 @@ export default function App() {
             <span className="boot-screen__mark">NY</span>
             <p className="hud-label">NEW YORK / URBAN OPERATIONS</p>
             <h1>纽约</h1>
-            <p>正在载入纽约开放数据 · {data.stats.buildings.toLocaleString('zh-CN')} 栋真实建筑</p>
+            <p>正在载入五区边界与社区数据 · {data.stats.buildings.toLocaleString('zh-CN')} 栋建筑按视口加载</p>
             <div className="boot-screen__bar"><i /></div>
             <div className="boot-screen__meta">
               <span>GRID {Math.round(WORLD.width / 100) / 10} × {Math.round(WORLD.height / 100) / 10} KM</span>

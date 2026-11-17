@@ -2,7 +2,7 @@ import { WORLD } from '../data/city.js'
 import { normalizeStreamBuilding } from './generator.js'
 
 const BASE = 'https://a841-dotweb01.nyc.gov/arcgis/rest/services/GAZETTEER/NYCDOTBaseMap_Street/MapServer'
-export const TILE_SIZE = 700
+export const TILE_SIZE = 500
 
 export function tileKey(tx, ty) {
   return `${tx}:${ty}`
