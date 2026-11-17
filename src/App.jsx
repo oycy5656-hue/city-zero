@@ -153,7 +153,12 @@ export default function App() {
     } else {
       setSelectedPoi(result.poi)
       setSelectedDistrict(result.districtId)
-      setFocusRequest({ districtId: result.districtId, ts: Date.now() })
+      setFocusRequest({
+        x: result.poi.x,
+        y: result.poi.y,
+        scale: 0.42,
+        ts: Date.now(),
+      })
     }
   }
 
@@ -351,6 +356,9 @@ export default function App() {
           log={log}
           onAction={handleDistrictAction}
           onFocus={focusDistrict}
+          onFocusPoi={(poi) =>
+            setFocusRequest({ x: poi.x, y: poi.y, scale: 0.46, ts: Date.now() })
+          }
           onClosePoi={() => setSelectedPoi(null)}
         />
 

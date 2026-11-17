@@ -63,6 +63,26 @@ const MapCanvas = forwardRef(function MapCanvas(
     cameraRef.current = clampCamera(camera, width, height)
   }, [])
 
+  const focusPoint = useCallback((x, y, scale = 0.38, animate = true) => {
+    if (!cameraRef.current) return
+    const { width, height } = sizeRef.current
+    const target = clampCamera(
+      { x, y, scale },
+      width,
+      height,
+    )
+    if (!animate) {
+      cameraRef.current = target
+      return
+    }
+    animRef.current = {
+      from: { ...cameraRef.current },
+      to: target,
+      start: performance.now(),
+      duration: 620,
+    }
+  }, [])
+
   const focusDistrict = useCallback(
     (districtId, animate = true) => {
       const district = DISTRICT_BY_ID[districtId]
@@ -115,11 +135,12 @@ const MapCanvas = forwardRef(function MapCanvas(
     ref,
     () => ({
       focusDistrict,
+      focusPoint,
       resetView,
       zoomBy,
       getCamera: () => cameraRef.current,
     }),
-    [focusDistrict, resetView, zoomBy],
+    [focusDistrict, focusPoint, resetView, zoomBy],
   )
 
   // Resize and initialize the camera.
@@ -154,11 +175,17 @@ const MapCanvas = forwardRef(function MapCanvas(
     return () => observer.disconnect()
   }, [])
 
-  // Focus requests coming from the district list.
+  // Focus requests coming from the district list or search.
   useEffect(() => {
-    if (!focusRequest?.districtId) return
-    focusDistrict(focusRequest.districtId)
-  }, [focusRequest, focusDistrict])
+    if (!focusRequest) return
+    if (typeof focusRequest.x === 'number' && typeof focusRequest.y === 'number') {
+      focusPoint(focusRequest.x, focusRequest.y, focusRequest.scale || 0.4)
+      return
+    }
+    if (focusRequest.districtId) {
+      focusDistrict(focusRequest.districtId)
+    }
+  }, [focusRequest, focusDistrict, focusPoint])
 
   // Main render loop.
   useEffect(() => {

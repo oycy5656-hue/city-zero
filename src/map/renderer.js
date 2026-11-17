@@ -31,6 +31,8 @@ const POI_COLORS = {
   residential: '#ffb454',
 }
 
+const CONTAINER_COLORS = ['#5e3328', '#294e54', '#5b4929', '#3a3d4f', '#365440', '#4d2e39']
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value))
 }
@@ -102,6 +104,14 @@ export function cameraBounds(camera, width, height) {
 }
 
 function hexToRgb(hex) {
+  if (hex.startsWith('rgb')) {
+    const parts = hex.match(/[\d.]+/g)
+    return {
+      r: Number(parts?.[0] || 0),
+      g: Number(parts?.[1] || 0),
+      b: Number(parts?.[2] || 0),
+    }
+  }
   const value = hex.replace('#', '')
   return {
     r: parseInt(value.slice(0, 2), 16),
@@ -225,18 +235,137 @@ function drawWater(ctx, camera, width, height, data) {
 }
 
 function drawParks(ctx, camera, width, height, data) {
-  ctx.save()
+  const scale = camera.scale
   for (const park of data.parks) {
+    ctx.save()
     ctx.beginPath()
     tracePolygon(ctx, camera, width, height, park.poly)
-    ctx.fillStyle = 'rgba(26, 66, 51, 0.48)'
+    if (park.kind === 'solar') {
+      ctx.fillStyle = 'rgba(35, 34, 29, 0.9)'
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(255, 211, 106, 0.22)'
+      ctx.lineWidth = 1
+      ctx.stroke()
+      const p = worldToScreen(camera, width, height, park.centroid[0], park.centroid[1])
+      const panelW = 190 * scale
+      const panelH = 34 * scale
+      if (scale > 0.08) {
+        ctx.fillStyle = 'rgba(255, 203, 86, 0.16)'
+        for (let row = -4; row <= 4; row += 1) {
+          for (let col = -5; col <= 5; col += 1) {
+            if (row * row + col * col > 28) continue
+            ctx.fillRect(p.x + col * panelW * 0.92, p.y + row * panelH * 1.2, panelW * 0.72, panelH)
+          }
+        }
+      }
+      ctx.restore()
+      continue
+    }
+
+    const gradient = ctx.createRadialGradient(
+      worldToScreen(camera, width, height, park.centroid[0], park.centroid[1]).x,
+      worldToScreen(camera, width, height, park.centroid[0], park.centroid[1]).y,
+      0,
+      worldToScreen(camera, width, height, park.centroid[0], park.centroid[1]).x,
+      worldToScreen(camera, width, height, park.centroid[0], park.centroid[1]).y,
+      Math.max(16, 900 * scale),
+    )
+    gradient.addColorStop(0, 'rgba(38, 92, 69, 0.82)')
+    gradient.addColorStop(1, 'rgba(14, 42, 33, 0.78)')
+    ctx.fillStyle = gradient
     ctx.fill()
-    ctx.strokeStyle = 'rgba(93, 205, 145, 0.26)'
+    ctx.strokeStyle = 'rgba(110, 215, 158, 0.38)'
     ctx.lineWidth = 1
     ctx.stroke()
+
+    if (park.water) {
+      ctx.beginPath()
+      tracePolygon(ctx, camera, width, height, park.water)
+      ctx.fillStyle = 'rgba(10, 45, 55, 0.9)'
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(83, 197, 204, 0.58)'
+      ctx.lineWidth = Math.max(0.7, 1.2)
+      ctx.stroke()
+
+      // Water ripples, clipped to the reservoir.
+      ctx.save()
+      ctx.beginPath()
+      tracePolygon(ctx, camera, width, height, park.water)
+      ctx.clip()
+      ctx.strokeStyle = 'rgba(104, 199, 205, 0.09)'
+      ctx.lineWidth = 1
+      for (let i = 1; i <= 9; i += 1) {
+        const y = -2300 + i * 72
+        const a = worldToScreen(camera, width, height, -3000, y)
+        const b = worldToScreen(camera, width, height, -1600, y + 18)
+        ctx.beginPath()
+        ctx.moveTo(a.x, a.y)
+        ctx.bezierCurveTo(
+          a.x + (b.x - a.x) * 0.3,
+          a.y - 3,
+          a.x + (b.x - a.x) * 0.7,
+          a.y + 7,
+          b.x,
+          b.y,
+        )
+        ctx.stroke()
+      }
+      ctx.restore()
+
+      if (park.islands) {
+        for (const island of park.islands) {
+          ctx.beginPath()
+          tracePolygon(ctx, camera, width, height, island)
+          ctx.fillStyle = 'rgba(36, 86, 61, 0.96)'
+          ctx.fill()
+          ctx.strokeStyle = 'rgba(138, 214, 160, 0.4)'
+          ctx.lineWidth = 1
+          ctx.stroke()
+        }
+      }
+    }
+
+    if (park.paths && scale > 0.1) {
+      ctx.strokeStyle = 'rgba(196, 178, 135, 0.34)'
+      ctx.lineWidth = Math.min(4, Math.max(1, 3 * scale))
+      ctx.setLineDash([6, 8])
+      for (const path of park.paths) {
+        ctx.beginPath()
+        path.forEach(([x, y], index) => {
+          const p = worldToScreen(camera, width, height, x, y)
+          if (index === 0) ctx.moveTo(p.x, p.y)
+          else ctx.lineTo(p.x, p.y)
+        })
+        ctx.stroke()
+      }
+      ctx.setLineDash([])
+    }
+
+    if (scale > 0.13 && park.trees) {
+      for (const tree of park.trees) {
+        const p = worldToScreen(camera, width, height, tree.x, tree.y)
+        if (p.x < -8 || p.x > width + 8 || p.y < -8 || p.y > height + 8) continue
+        const radius = Math.max(0.55, tree.size * Math.max(0.7, scale * 0.9))
+        ctx.fillStyle = tree.tone > 0.5 ? 'rgba(68, 145, 97, 0.75)' : 'rgba(42, 111, 78, 0.75)'
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+
+    if (scale > 0.16 && park.id !== 'reservoir') {
+      const p = worldToScreen(camera, width, height, park.centroid[0], park.centroid[1])
+      ctx.font = '500 11px "Noto Sans SC", "Microsoft YaHei", sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillStyle = 'rgba(168, 232, 196, 0.72)'
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)'
+      ctx.shadowBlur = 8
+      ctx.fillText(park.name, p.x, p.y)
+    }
+    ctx.restore()
   }
-  ctx.restore()
 }
+
 
 function drawCityGlow(ctx, camera, width, height, data) {
   ctx.save()
@@ -329,6 +458,13 @@ function drawRoads(ctx, camera, width, height, data, scale) {
   ctx.strokeStyle = 'rgba(47, 66, 75, 0.9)'
   ctx.lineWidth = Math.max(0.8, 17 * scale)
   ctx.stroke()
+  if (scale > 0.42) {
+    ctx.setLineDash([Math.max(2, 7 * scale), Math.max(2, 7 * scale)])
+    ctx.strokeStyle = 'rgba(206, 201, 176, 0.26)'
+    ctx.lineWidth = Math.max(0.5, 0.9 * scale)
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
   ctx.restore()
 
   // Highways: casing, asphalt, and a faint lane divider.
@@ -358,25 +494,97 @@ function drawRoads(ctx, camera, width, height, data, scale) {
 }
 
 function drawBlocks(ctx, camera, width, height, data) {
-  ctx.save()
   const bounds = cameraBounds(camera, width, height)
+  const groups = new Map()
+  for (const block of data.blocks) {
+    if (block.x < bounds.minX - 200 || block.x > bounds.maxX + 200) continue
+    if (block.y < bounds.minY - 200 || block.y > bounds.maxY + 200) continue
+    if (block.w * camera.scale < 1 || block.h * camera.scale < 1) continue
+    const style = block.plaza
+      ? 'plaza'
+      : block.yard
+        ? 'yard'
+        : buildingColor(block.district, block.height || 20, 'mixed')
+    if (!groups.has(style)) groups.set(style, [])
+    groups.get(style).push(block)
+  }
+
+  ctx.save()
+  for (const [style, blocks] of groups) {
+    ctx.beginPath()
+    for (const block of blocks) {
+      block.corners.forEach(([x, y], index) => {
+        const p = worldToScreen(camera, width, height, x, y)
+        if (index === 0) ctx.moveTo(p.x, p.y)
+        else ctx.lineTo(p.x, p.y)
+      })
+      ctx.closePath()
+    }
+    ctx.globalAlpha = style === 'plaza' ? 0.78 : 0.58
+    ctx.fillStyle = style === 'plaza' ? 'rgba(27, 69, 52, 0.76)' : style === 'yard' ? 'rgba(24, 29, 31, 0.86)' : style
+    ctx.fill()
+    ctx.globalAlpha = 0.3
+    ctx.strokeStyle = 'rgba(144, 188, 190, 0.2)'
+    ctx.lineWidth = 0.55
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
+function drawBlockGround(ctx, camera, width, height, data) {
+  const bounds = cameraBounds(camera, width, height)
+  const scale = camera.scale
   for (const block of data.blocks) {
     if (block.x < bounds.minX - 200 || block.x > bounds.maxX + 200) continue
     if (block.y < bounds.minY - 200 || block.y > bounds.maxY + 200) continue
     const p = worldToScreen(camera, width, height, block.x, block.y)
-    const w = block.w * camera.scale
-    const h = block.h * camera.scale
-    if (w < 1 || h < 1) continue
-    const color = buildingColor(block.district, block.height || 20, 'mixed')
+    const w = block.w * scale
+    const h = block.h * scale
+    if (w < 3 || h < 3) continue
     ctx.save()
     ctx.translate(p.x, p.y)
     ctx.rotate(block.angle)
-    ctx.fillStyle = color
-    ctx.globalAlpha = 0.58
+    ctx.fillStyle = 'rgba(17, 25, 27, 0.82)'
     ctx.fillRect(-w / 2, -h / 2, w, h)
+
+    if (block.courtyard) {
+      const cw = block.courtyard.w * scale
+      const ch = block.courtyard.h * scale
+      ctx.fillStyle = block.courtyard.green ? 'rgba(28, 70, 52, 0.82)' : 'rgba(35, 39, 40, 0.86)'
+      ctx.fillRect(-cw / 2, -ch / 2, cw, ch)
+      if (block.courtyard.green && scale > 0.6) {
+        ctx.fillStyle = 'rgba(69, 138, 95, 0.55)'
+        for (let i = 0; i < 7; i += 1) {
+          const angle = i * 2.4 + block.x * 0.0001
+          const tx = Math.cos(angle) * (cw * 0.26 + (i % 3) * 3)
+          const ty = Math.sin(angle) * (ch * 0.26 + (i % 2) * 2)
+          ctx.beginPath()
+          ctx.arc(tx, ty, Math.max(0.7, 1.6 * scale), 0, Math.PI * 2)
+          ctx.fill()
+        }
+      }
+    }
+
+    if (block.yard) {
+      ctx.fillStyle = 'rgba(33, 34, 31, 0.4)'
+      ctx.fillRect(-w * 0.42, -h * 0.42, w * 0.84, h * 0.84)
+      if (scale > 0.5) {
+        ctx.strokeStyle = 'rgba(191, 184, 151, 0.1)'
+        ctx.lineWidth = 0.7
+        for (let i = -2; i <= 2; i += 1) {
+          ctx.beginPath()
+          ctx.moveTo(i * w * 0.14, -h * 0.32)
+          ctx.lineTo(i * w * 0.14, h * 0.32)
+          ctx.stroke()
+        }
+      }
+    }
+
+    ctx.strokeStyle = 'rgba(139, 188, 188, 0.16)'
+    ctx.lineWidth = 0.7
+    ctx.strokeRect(-w / 2, -h / 2, w, h)
     ctx.restore()
   }
-  ctx.restore()
 }
 
 function drawLowZoomRoads(ctx, camera, width, height, data) {
@@ -443,7 +651,7 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId) {
       const w = b.w * scale
       const h = b.h * scale
       if (w < 1.4 || h < 1.4) continue
-      const offset = Math.min(16, b.height * scale * 0.14)
+      const offset = Math.min(12, b.height * scale * 0.12)
       if (offset < 0.8) continue
       const cos = Math.cos(b.angle)
       const sin = Math.sin(b.angle)
@@ -459,7 +667,7 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId) {
       ctx.moveTo(corners[0][0], corners[0][1])
       for (let i = 1; i < 4; i += 1) ctx.lineTo(corners[i][0], corners[i][1])
       ctx.closePath()
-      ctx.fillStyle = `rgba(0, 0, 0, ${b.height > 100 ? 0.34 : 0.2})`
+      ctx.fillStyle = `rgba(0, 0, 0, ${b.height > 100 ? 0.2 : 0.12})`
       ctx.fill()
     }
     ctx.restore()
@@ -471,8 +679,47 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId) {
     const w = b.w * scale
     const h = b.h * scale
     if (w < 0.7 || h < 0.7) continue
-    const baseColor = buildingColor(b.district, b.height, b.type)
+    const toneShift = (b.tone - 0.5) * 0.26
+    let baseColor = shade(buildingColor(b.district, b.height, b.type), toneShift)
+    if (b.type === 'container') {
+      baseColor = CONTAINER_COLORS[Math.floor(b.tone * CONTAINER_COLORS.length) % CONTAINER_COLORS.length]
+    }
     const accent = districtColors.get(b.district) || '#53e0d0'
+
+    if (b.shape === 'round') {
+      const radius = Math.max(1, Math.min(w, h) / 2)
+      const offset = Math.min(12, b.height * scale * 0.12)
+      ctx.beginPath()
+      ctx.arc(p.x + offset, p.y + offset * 0.7, radius, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
+      ctx.fill()
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, radius, 0, Math.PI * 2)
+      ctx.fillStyle = shade(baseColor, -0.36)
+      ctx.fill()
+      ctx.beginPath()
+      ctx.arc(p.x, p.y - Math.min(4, radius * 0.14), radius * 0.78, 0, Math.PI * 2)
+      ctx.fillStyle = shade(baseColor, 0.18)
+      ctx.fill()
+      ctx.strokeStyle = rgba(accent, 0.32)
+      ctx.lineWidth = 0.7
+      ctx.stroke()
+      if (veryDetailed && radius > 7) {
+        ctx.beginPath()
+        ctx.arc(p.x, p.y - Math.min(4, radius * 0.14), radius * 0.28, 0, Math.PI * 2)
+        ctx.strokeStyle = 'rgba(160, 220, 220, 0.28)'
+        ctx.stroke()
+      }
+      if (hoveredId === b.id) {
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, radius + 1, 0, Math.PI * 2)
+        ctx.strokeStyle = '#ffd36a'
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+      }
+      continue
+    }
+
     const cos = Math.cos(b.angle)
     const sin = Math.sin(b.angle)
     const hw = w / 2
@@ -491,6 +738,11 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId) {
       ctx.closePath()
       ctx.fillStyle = baseColor
       ctx.fill()
+      if (detailed) {
+        ctx.strokeStyle = rgba(accent, 0.22)
+        ctx.lineWidth = 0.55
+        ctx.stroke()
+      }
       if (detailed && b.height > 55 && w > 4 && h > 4) {
         ctx.fillStyle = 'rgba(170, 225, 225, 0.1)'
         ctx.fillRect(p.x - w * 0.22, p.y - h * 0.22, w * 0.44, h * 0.44)
@@ -628,6 +880,29 @@ function drawTraffic(ctx, camera, width, height, data, scale, time) {
     if (scale > 0.8) {
       ctx.globalAlpha = 0.16
       ctx.fillRect(p.x - 5, p.y - 1, 10, 2)
+    }
+  }
+  ctx.restore()
+}
+
+function drawStreetLights(ctx, camera, width, height, data, scale) {
+  if (scale < 0.3) return
+  ctx.save()
+  for (const highway of data.highways) {
+    for (let i = 0; i < highway.points.length - 1; i += 1) {
+      const [x1, y1] = highway.points[i]
+      const [x2, y2] = highway.points[i + 1]
+      const length = Math.hypot(x2 - x1, y2 - y1)
+      const count = Math.max(1, Math.floor(length / 130))
+      for (let j = 0; j <= count; j += 1) {
+        const t = j / count
+        const x = x1 + (x2 - x1) * t
+        const y = y1 + (y2 - y1) * t
+        const p = worldToScreen(camera, width, height, x, y)
+        if (p.x < -4 || p.x > width + 4 || p.y < -4 || p.y > height + 4) continue
+        ctx.fillStyle = j % 3 === 0 ? 'rgba(255, 205, 120, 0.72)' : 'rgba(255, 222, 157, 0.36)'
+        ctx.fillRect(p.x - 0.8, p.y - 0.8, 1.6, 1.6)
+      }
     }
   }
   ctx.restore()
@@ -812,19 +1087,21 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
 
   if (options.grid !== false) drawGrid(ctx, camera, width, height)
   drawWater(ctx, camera, width, height, data)
-  drawParks(ctx, camera, width, height, data)
   drawCityGlow(ctx, camera, width, height, data)
   if (options.districts !== false) drawDistricts(ctx, camera, width, height, data, options.selectedDistrict)
+  drawParks(ctx, camera, width, height, data)
   drawRoads(ctx, camera, width, height, data, scale)
 
   if (scale < 0.27) {
     drawBlocks(ctx, camera, width, height, data)
     drawLowZoomRoads(ctx, camera, width, height, data)
   } else {
+    drawBlockGround(ctx, camera, width, height, data)
     drawBuildings(ctx, camera, width, height, data, scale, options.hoveredBuilding)
   }
 
   if (options.traffic !== false) drawTraffic(ctx, camera, width, height, data, scale, time)
+  drawStreetLights(ctx, camera, width, height, data, scale)
   drawLandmarks(ctx, camera, width, height, data, scale)
   if (options.pois !== false) drawPois(ctx, camera, width, height, data, scale, options.selectedPoi)
   if (options.districts !== false) drawDistrictLabels(ctx, camera, width, height, data, options.selectedDistrict)

@@ -65,6 +65,7 @@ export default function DistrictInspector({
   log,
   onAction,
   onFocus,
+  onFocusPoi,
   onClosePoi,
 }) {
   if (poi) {
@@ -102,8 +103,8 @@ export default function DistrictInspector({
               <dd>{poi.height} m</dd>
             </div>
           </dl>
-          <button className="action-button action-button--primary" onClick={() => onFocus(district?.id)}>
-            聚焦城区
+          <button className="action-button action-button--primary" onClick={() => onFocusPoi(poi)}>
+            聚焦地点
           </button>
         </div>
       </aside>
