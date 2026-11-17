@@ -4,6 +4,7 @@ import {
   DISTRICTS,
   EXPRESSWAYS,
   FACTIONS,
+  INTERCHANGES,
   PARKS,
   POIS,
   WORLD,
@@ -553,6 +554,24 @@ export function generateCity() {
     }
   }
 
+  const ramps = []
+  for (const interchange of INTERCHANGES) {
+    const directions =
+      interchange.type === 'full'
+        ? [[1, 1], [1, -1], [-1, 1], [-1, -1]]
+        : [[1, 1], [-1, -1]]
+    for (const [dx, dy] of directions) {
+      ramps.push({
+        id: `${interchange.id}-${dx}-${dy}`,
+        x1: interchange.x,
+        y1: interchange.y,
+        x2: interchange.x + dx * 150,
+        y2: interchange.y + dy * 90,
+        width: 9,
+      })
+    }
+  }
+
   const roadSegments = [
     ...roads.map((road) => ({
       x1: road.x1,
@@ -562,6 +581,7 @@ export function generateCity() {
       width: road.width,
     })),
     ...expresswaySegments,
+    ...ramps,
   ]
   const roadIndex = buildRoadIndex(roadSegments)
   const beforeClearance = buildings.length
@@ -620,6 +640,8 @@ export function generateCity() {
     blocks,
     roads,
     highways: EXPRESSWAYS,
+    ramps,
+    interchanges: INTERCHANGES,
     trafficRoutes,
     vehicles,
     cityFootprint: CITY_FOOTPRINT,

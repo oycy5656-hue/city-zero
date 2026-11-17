@@ -689,6 +689,76 @@ function drawExpressways(ctx, camera, width, height, data, scale) {
   }
 }
 
+function drawRamps(ctx, camera, width, height, data, scale) {
+  if (scale < 0.27) return
+  for (const ramp of data.ramps || []) {
+    const a = worldToScreen(camera, width, height, ramp.x1, ramp.y1)
+    const b = worldToScreen(camera, width, height, ramp.x2, ramp.y2)
+    const mx = (a.x + b.x) / 2 + (b.y - a.y) * 0.18
+    const my = (a.y + b.y) / 2 - (b.x - a.x) * 0.18
+    const path = () => {
+      ctx.beginPath()
+      ctx.moveTo(a.x, a.y)
+      ctx.quadraticCurveTo(mx, my, b.x, b.y)
+    }
+    ctx.save()
+    ctx.translate(5, 7)
+    path()
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)'
+    ctx.lineWidth = Math.max(3, 15 * scale)
+    ctx.stroke()
+    ctx.restore()
+
+    path()
+    ctx.strokeStyle = 'rgba(8, 12, 14, 0.96)'
+    ctx.lineWidth = Math.max(2, 12 * scale)
+    ctx.stroke()
+    path()
+    ctx.strokeStyle = 'rgba(95, 113, 118, 0.92)'
+    ctx.lineWidth = Math.max(1.5, 8 * scale)
+    ctx.stroke()
+    if (scale > 0.5) {
+      ctx.setLineDash([Math.max(2, 5 * scale), Math.max(2, 6 * scale)])
+      ctx.strokeStyle = 'rgba(255, 209, 132, 0.55)'
+      ctx.lineWidth = Math.max(0.5, 0.8 * scale)
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
+    // Merge arrow at the surface end.
+    const angle = Math.atan2(b.y - my, b.x - mx)
+    ctx.save()
+    ctx.translate(b.x, b.y)
+    ctx.rotate(angle)
+    ctx.fillStyle = 'rgba(255, 203, 112, 0.75)'
+    ctx.beginPath()
+    ctx.moveTo(0, 0)
+    ctx.lineTo(-8 * Math.max(0.6, scale), -4 * Math.max(0.6, scale))
+    ctx.lineTo(-8 * Math.max(0.6, scale), 4 * Math.max(0.6, scale))
+    ctx.closePath()
+    ctx.fill()
+    ctx.restore()
+  }
+}
+
+function drawInterchanges(ctx, camera, width, height, data, scale) {
+  if (scale < 0.3) return
+  for (const node of data.interchanges || []) {
+    const p = worldToScreen(camera, width, height, node.x, node.y)
+    const radius = Math.max(4, 42 * scale)
+    ctx.save()
+    ctx.strokeStyle = 'rgba(255, 198, 104, 0.4)'
+    ctx.lineWidth = Math.max(0.8, 1.2 * scale)
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.strokeStyle = 'rgba(255, 219, 152, 0.7)'
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, Math.max(1.2, radius * 0.32), 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.restore()
+  }
+}
+
 function drawDistrictOutlines(ctx, camera, width, height, data, selectedId) {
   ctx.save()
   for (const district of data.districts) {
@@ -1326,7 +1396,9 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
     drawBuildings(ctx, camera, width, height, data, scale, options.hoveredBuilding)
   }
 
+  drawRamps(ctx, camera, width, height, data, scale)
   drawExpressways(ctx, camera, width, height, data, scale)
+  drawInterchanges(ctx, camera, width, height, data, scale)
   if (options.traffic !== false) drawTraffic(ctx, camera, width, height, data, scale, time)
   drawStreetLights(ctx, camera, width, height, data, scale)
   drawLandmarks(ctx, camera, width, height, data, scale)
