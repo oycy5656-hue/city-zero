@@ -2,6 +2,7 @@ import {
   AIRPORT,
   CITY_FOOTPRINT,
   DISTRICTS,
+  EXPRESSWAYS,
   FACTIONS,
   PARKS,
   POIS,
@@ -124,31 +125,62 @@ function scatterTrees(poly, count, rand, water = null) {
 function pickMorphology(kind, random) {
   const value = random()
   if (kind === 'core') {
-    if (value < 0.06) return 'plaza'
-    if (value < 0.24) return 'tower'
+    if (value < 0.05) return 'plaza'
+    if (value < 0.12) return 'supertower'
+    if (value < 0.21) return 'twin'
+    if (value < 0.3) return 'mall'
+    if (value < 0.38) return 'parking'
+    if (value < 0.46) return 'data'
+    if (value < 0.62) return 'tower'
     return 'podium'
   }
   if (kind === 'ring') {
-    if (value < 0.08) return 'plaza'
-    if (value < 0.2) return 'tower'
-    if (value < 0.78) return 'perimeter'
+    if (value < 0.06) return 'plaza'
+    if (value < 0.14) return 'tower'
+    if (value < 0.22) return 'school'
+    if (value < 0.3) return 'market'
+    if (value < 0.38) return 'parking'
+    if (value < 0.74) return 'perimeter'
     return 'rows'
   }
   if (kind === 'strip') {
     if (value < 0.05) return 'plaza'
-    if (value < 0.55) return 'perimeter'
+    if (value < 0.15) return 'hotel'
+    if (value < 0.23) return 'theater'
+    if (value < 0.33) return 'mall'
+    if (value < 0.72) return 'perimeter'
     return 'podium'
   }
   if (kind === 'rust') {
-    if (value < 0.3) return 'tanks'
-    if (value < 0.76) return 'warehouse'
+    if (value < 0.2) return 'tanks'
+    if (value < 0.32) return 'silo'
+    if (value < 0.48) return 'factory'
+    if (value < 0.68) return 'warehouse'
+    if (value < 0.76) return 'construction'
     return 'rows'
   }
   if (kind === 'harbor') {
-    if (value < 0.58) return 'containers'
-    return 'warehouse'
+    if (value < 0.42) return 'containers'
+    if (value < 0.52) return 'fishmarket'
+    if (value < 0.64) return 'crane'
+    if (value < 0.82) return 'warehouse'
+    return 'rows'
   }
-  return value < 0.5 ? 'outpost' : 'rows'
+  if (value < 0.2) return 'hangar'
+  if (value < 0.34) return 'solarfield'
+  if (value < 0.56) return 'garage'
+  return 'outpost'
+}
+
+function styleFor(type, district, random) {
+  if (type === 'container') return 'metal'
+  if (type === 'tower' || type === 'office') return random > 0.25 ? 'glass' : 'concrete'
+  if (type === 'housing') return random > 0.55 ? 'brick' : 'concrete'
+  if (type === 'industrial' || type === 'warehouse' || type === 'factory') return random > 0.5 ? 'metal' : 'brick'
+  if (type === 'hotel' || type === 'theater' || type === 'market') return random > 0.35 ? 'neon' : 'concrete'
+  if (type === 'civic' || type === 'school') return 'concrete'
+  if (district === 'harbor') return 'metal'
+  return random > 0.6 ? 'concrete' : 'glass'
 }
 
 export function generateCity() {
@@ -186,47 +218,53 @@ export function generateCity() {
   // where it hits the city edge, a park, or the airport.
   for (let i = 0; i <= COLS; i += 1) {
     const x = START_X + i * GRID_X
-    const width = i % 6 === 0 ? 19 : i % 3 === 0 ? 12 : 7
+    const boundary = [-4200, 600, 1200, 4200].some((value) => Math.abs(x - value) < 1)
+    const width = boundary ? 24 : i % 8 === 0 ? 19 : i % 4 === 0 ? 11 : 6
     let runStart = null
     for (let j = 0; j < ROWS; j += 1) {
       const y1 = START_Y + j * GRID_Y
       const y2 = y1 + GRID_Y
       const cellA = cellInfo(i - 1, j)
       const cellB = cellInfo(i, j)
+      const skipLocal = width < 11 && (i * 13 + j * 7) % 9 === 0
       const keep =
+        !skipLocal &&
         pointInPolygon(x, (y1 + y2) / 2, CITY_FOOTPRINT) &&
         ((cellA && !cellA.park && !cellA.airport) || (cellB && !cellB.park && !cellB.airport))
       if (keep && runStart === null) runStart = y1
       if (!keep && runStart !== null) {
-        roads.push({ x1: x, y1: runStart, x2: x, y2: y1, width, kind: width > 15 ? 'arterial' : 'local', axis: 'v' })
+        roads.push({ x1: x, y1: runStart, x2: x, y2: y1, width, kind: width > 11 ? 'arterial' : 'local', axis: 'v' })
         runStart = null
       }
     }
     if (runStart !== null) {
-      roads.push({ x1: x, y1: runStart, x2: x, y2: START_Y + ROWS * GRID_Y, width, kind: width > 15 ? 'arterial' : 'local', axis: 'v' })
+      roads.push({ x1: x, y1: runStart, x2: x, y2: START_Y + ROWS * GRID_Y, width, kind: width > 11 ? 'arterial' : 'local', axis: 'v' })
     }
   }
 
   for (let j = 0; j <= ROWS; j += 1) {
     const y = START_Y + j * GRID_Y
-    const width = j % 6 === 0 ? 19 : j % 3 === 0 ? 12 : 7
+    const boundary = [-3100, -2500, 1550, 2150].some((value) => Math.abs(y - value) < 1)
+    const width = boundary ? 24 : j % 8 === 0 ? 19 : j % 4 === 0 ? 11 : 6
     let runStart = null
     for (let i = 0; i < COLS; i += 1) {
       const x1 = START_X + i * GRID_X
       const x2 = x1 + GRID_X
       const cellA = cellInfo(i, j - 1)
       const cellB = cellInfo(i, j)
+      const skipLocal = width < 11 && (i * 7 + j * 13) % 9 === 0
       const keep =
+        !skipLocal &&
         pointInPolygon((x1 + x2) / 2, y, CITY_FOOTPRINT) &&
         ((cellA && !cellA.park && !cellA.airport) || (cellB && !cellB.park && !cellB.airport))
       if (keep && runStart === null) runStart = x1
       if (!keep && runStart !== null) {
-        roads.push({ x1: runStart, y1: y, x2: x1, y2: y, width, kind: width > 15 ? 'arterial' : 'local', axis: 'h' })
+        roads.push({ x1: runStart, y1: y, x2: x1, y2: y, width, kind: width > 11 ? 'arterial' : 'local', axis: 'h' })
         runStart = null
       }
     }
     if (runStart !== null) {
-      roads.push({ x1: runStart, y1: y, x2: START_X + COLS * GRID_X, y2: y, width, kind: width > 15 ? 'arterial' : 'local', axis: 'h' })
+      roads.push({ x1: runStart, y1: y, x2: START_X + COLS * GRID_X, y2: y, width, kind: width > 11 ? 'arterial' : 'local', axis: 'h' })
     }
   }
 
@@ -273,7 +311,7 @@ export function generateCity() {
         !pointInAirport(x, y, 8) &&
         pointInPolygon(x, y, district.poly)
 
-      const addLocal = (lx, ly, w, h, height, type, shape = 'rect', tone = rand()) => {
+      const addLocal = (lx, ly, w, h, height, type, shape = 'rect', tone = rand(), roof = 'flat', style = null) => {
         const x = wx + lx
         const y = wy + ly
         const halfW = w / 2
@@ -295,6 +333,8 @@ export function generateCity() {
           height,
           type,
           shape,
+          roof,
+          style: style || styleFor(type, district.id, tone),
           district: district.id,
           tone,
         })
@@ -319,6 +359,87 @@ export function generateCity() {
       if (morph === 'plaza') {
         if (rand() > 0.5) addLocal(0, 0, 12, 9, 5 + rand() * 4, 'civic')
         block.courtyard = { w: innerW, h: innerH, green: true }
+      } else if (morph === 'supertower') {
+        const bw = innerW * (0.32 + rand() * 0.08)
+        const bd = innerH * (0.32 + rand() * 0.08)
+        addLocal(0, 0, bw, bd, baseHeight(1.65), 'tower', 'cross', rand(), 'spire', 'glass')
+        addLocal(-innerW * 0.34, innerH * 0.27, innerW * 0.26, innerH * 0.22, baseHeight(0.4), 'podium', 'rect', rand(), 'flat', 'concrete')
+        addLocal(innerW * 0.34, -innerH * 0.27, innerW * 0.24, innerH * 0.22, baseHeight(0.32), 'podium', 'rect', rand(), 'flat', 'concrete')
+      } else if (morph === 'twin') {
+        addLocal(-innerW * 0.22, 0, innerW * 0.3, innerH * 0.48, baseHeight(1.3), 'tower', 'rect', rand(), 'spire', 'glass')
+        addLocal(innerW * 0.22, 0, innerW * 0.28, innerH * 0.46, baseHeight(1.22), 'tower', 'rect', rand(), 'flat', 'glass')
+        addLocal(0, innerH * 0.32, innerW * 0.7, innerH * 0.2, baseHeight(0.3), 'podium', 'rect', rand(), 'flat', 'concrete')
+      } else if (morph === 'mall') {
+        addLocal(0, 0, innerW * 0.9, innerH * 0.72, 18 + rand() * 18, 'mall', 'rect', rand(), 'skylight', 'concrete')
+        addLocal(innerW * 0.38, innerH * 0.32, innerW * 0.2, innerH * 0.18, 8 + rand() * 5, 'podium', 'rect', rand(), 'flat', 'concrete')
+        block.yard = true
+      } else if (morph === 'parking') {
+        addLocal(0, 0, innerW * 0.8, innerH * 0.6, 12 + rand() * 8, 'parking', 'parking', rand(), 'open', 'concrete')
+        block.yard = true
+      } else if (morph === 'data') {
+        addLocal(0, 0, innerW * 0.72, innerH * 0.58, 14 + rand() * 12, 'data', 'rect', rand(), 'cooling', 'metal')
+        addLocal(innerW * 0.34, -innerH * 0.3, innerW * 0.18, innerH * 0.16, 6 + rand() * 4, 'industrial', 'rect', rand(), 'flat', 'metal')
+        block.yard = true
+      } else if (morph === 'school') {
+        const t = Math.min(innerW, innerH) * 0.18
+        addLocal(0, -innerH / 2 + t / 2, innerW * 0.75, t, baseHeight(0.4), 'school', 'rect', rand(), 'garden', 'concrete')
+        addLocal(-innerW / 2 + t / 2, innerH * 0.08, t, innerH * 0.55, baseHeight(0.3), 'school', 'rect', rand(), 'flat', 'concrete')
+        addLocal(innerW / 2 - t / 2, innerH * 0.08, t, innerH * 0.55, baseHeight(0.3), 'school', 'rect', rand(), 'flat', 'concrete')
+        block.courtyard = { w: innerW * 0.58, h: innerH * 0.48, green: true }
+      } else if (morph === 'market') {
+        for (let s = 0; s < 5; s += 1) {
+          addLocal(
+            (rand() - 0.5) * innerW * 0.68,
+            (rand() - 0.5) * innerH * 0.6,
+            10 + rand() * 12,
+            7 + rand() * 8,
+            4 + rand() * 4,
+            'market',
+            'rect',
+            rand(),
+            rand() > 0.5 ? 'billboard' : 'canopy',
+            'neon',
+          )
+        }
+        block.yard = true
+      } else if (morph === 'hotel') {
+        addLocal(-innerW * 0.12, 0, innerW * 0.36, innerH * 0.46, baseHeight(1.12), 'hotel', 'rect', rand(), 'billboard', 'neon')
+        addLocal(innerW * 0.3, innerH * 0.2, innerW * 0.26, innerH * 0.26, baseHeight(0.35), 'podium', 'rect', rand(), 'flat', 'concrete')
+      } else if (morph === 'theater') {
+        addLocal(0, 0, innerW * 0.58, innerH * 0.58, baseHeight(0.55), 'theater', 'round', rand(), 'dome', 'neon')
+        block.yard = true
+      } else if (morph === 'factory') {
+        addLocal(-innerW * 0.08, 0, innerW * 0.78, innerH * 0.55, baseHeight(0.5), 'factory', 'sawtooth', rand(), 'sawtooth', 'brick')
+        if (rand() > 0.5) addLocal(innerW * 0.38, innerH * 0.32, innerW * 0.16, innerH * 0.18, baseHeight(0.22), 'industrial', 'rect', rand(), 'flat', 'metal')
+        block.yard = true
+      } else if (morph === 'silo') {
+        const count = 3
+        for (let s = 0; s < count; s += 1) {
+          addLocal(-innerW * 0.28 + s * innerW * 0.28, 0, 18 + rand() * 10, 18 + rand() * 10, 18 + rand() * 16, 'silo', 'round', rand(), 'flat', 'concrete')
+        }
+        block.yard = true
+      } else if (morph === 'construction') {
+        addLocal(-innerW * 0.3, innerH * 0.22, 14, 10, 5, 'civic', 'rect', rand(), 'flat', 'concrete')
+        block.construction = true
+        block.yard = true
+      } else if (morph === 'fishmarket') {
+        for (let s = 0; s < 4; s += 1) {
+          addLocal(-innerW * 0.34 + s * innerW * 0.22, innerH * 0.05, innerW * 0.16, innerH * 0.14, 5 + rand() * 3, 'market', 'rect', rand(), 'canopy', 'neon')
+        }
+        block.yard = true
+      } else if (morph === 'crane') {
+        block.construction = true
+        addLocal(innerW * 0.22, innerH * 0.24, 22, 16, 8, 'warehouse', 'rect', rand(), 'flat', 'metal')
+        block.yard = true
+      } else if (morph === 'hangar') {
+        addLocal(0, 0, innerW * 0.86, innerH * 0.6, 18 + rand() * 16, 'hangar', 'hangar', rand(), 'arch', 'metal')
+        block.yard = true
+      } else if (morph === 'solarfield') {
+        block.solar = true
+        block.yard = true
+      } else if (morph === 'garage') {
+        addLocal(0, 0, innerW * 0.52, innerH * 0.46, 7 + rand() * 7, 'garage', 'rect', rand(), 'solar', 'metal')
+        block.yard = true
       } else if (morph === 'tower') {
         const bw = innerW * (0.38 + rand() * 0.18)
         const bd = innerH * (0.38 + rand() * 0.18)
@@ -423,13 +544,25 @@ export function generateCity() {
     }
   }
 
-  const roadSegments = roads.map((road) => ({
-    x1: road.x1,
-    y1: road.y1,
-    x2: road.x2,
-    y2: road.y2,
-    width: road.width,
-  }))
+  const expresswaySegments = []
+  for (const expressway of EXPRESSWAYS) {
+    for (let i = 0; i < expressway.points.length - 1; i += 1) {
+      const [x1, y1] = expressway.points[i]
+      const [x2, y2] = expressway.points[i + 1]
+      expresswaySegments.push({ x1, y1, x2, y2, width: expressway.width })
+    }
+  }
+
+  const roadSegments = [
+    ...roads.map((road) => ({
+      x1: road.x1,
+      y1: road.y1,
+      x2: road.x2,
+      y2: road.y2,
+      width: road.width,
+    })),
+    ...expresswaySegments,
+  ]
   const roadIndex = buildRoadIndex(roadSegments)
   const beforeClearance = buildings.length
   const kept = buildings.filter((building) => {
@@ -451,6 +584,18 @@ export function generateCity() {
   }
 
   const trafficRoutes = []
+  for (const expressway of EXPRESSWAYS) {
+    let length = 0
+    const segments = []
+    for (let i = 0; i < expressway.points.length - 1; i += 1) {
+      const [x1, y1] = expressway.points[i]
+      const [x2, y2] = expressway.points[i + 1]
+      const segmentLength = Math.hypot(x2 - x1, y2 - y1)
+      segments.push({ x1, y1, x2, y2, length: segmentLength, start: length })
+      length += segmentLength
+    }
+    trafficRoutes.push({ points: expressway.points, segments, length })
+  }
   for (const road of roads) {
     if (road.kind !== 'arterial') continue
     const length = Math.hypot(road.x2 - road.x1, road.y2 - road.y1)
@@ -474,7 +619,7 @@ export function generateCity() {
     buildings: kept,
     blocks,
     roads,
-    highways: [],
+    highways: EXPRESSWAYS,
     trafficRoutes,
     vehicles,
     cityFootprint: CITY_FOOTPRINT,

@@ -134,6 +134,22 @@ function shade(hex, amount) {
   )})`
 }
 
+function mixColor(a, b, amount) {
+  const ca = hexToRgb(a)
+  const cb = hexToRgb(b)
+  return `rgb(${Math.round(ca.r + (cb.r - ca.r) * amount)}, ${Math.round(
+    ca.g + (cb.g - ca.g) * amount,
+  )}, ${Math.round(ca.b + (cb.b - ca.b) * amount)})`
+}
+
+const STYLE_TINTS = {
+  glass: '#4f9eaa',
+  concrete: '#77766e',
+  brick: '#884c36',
+  metal: '#61747a',
+  neon: '#a13d72',
+}
+
 function buildingColor(districtId, height, kind) {
   const palette = PALETTES[districtId] || PALETTES.core
   const max = kind === 'outpost' ? 35 : kind === 'industrial' ? 90 : 260
@@ -463,30 +479,8 @@ function drawRoads(ctx, camera, width, height, data, scale) {
   }
   ctx.restore()
 
-  // Highways: casing, asphalt, and a faint lane divider.
-  ctx.save()
-  for (const highway of data.highways) {
-    ctx.beginPath()
-    highway.points.forEach(([x, y], index) => {
-      const p = worldToScreen(camera, width, height, x, y)
-      if (index === 0) ctx.moveTo(p.x, p.y)
-      else ctx.lineTo(p.x, p.y)
-    })
-    ctx.strokeStyle = 'rgba(3, 7, 9, 0.96)'
-    ctx.lineWidth = Math.max(3, highway.width * scale + 4)
-    ctx.stroke()
-    ctx.strokeStyle = 'rgba(81, 86, 88, 0.9)'
-    ctx.lineWidth = Math.max(2, highway.width * scale)
-    ctx.stroke()
-    if (scale > 0.18) {
-      ctx.setLineDash([10 * scale + 2, 10 * scale + 2])
-      ctx.strokeStyle = 'rgba(255, 190, 95, 0.55)'
-      ctx.lineWidth = Math.max(0.7, 1.2 * scale)
-      ctx.stroke()
-      ctx.setLineDash([])
-    }
-  }
-  ctx.restore()
+  // Elevated expressways are rendered after the buildings so they read as
+  // overpasses instead of surface streets.
 }
 
 function drawBlocks(ctx, camera, width, height, data) {
@@ -576,6 +570,28 @@ function drawBlockGround(ctx, camera, width, height, data) {
       }
     }
 
+    if (block.solar && scale > 0.32) {
+      ctx.fillStyle = 'rgba(30, 47, 58, 0.7)'
+      for (let sx = -2; sx <= 2; sx += 1) {
+        for (let sy = -1; sy <= 1; sy += 1) {
+          ctx.fillRect(sx * w * 0.16 - w * 0.06, sy * h * 0.18 - h * 0.05, w * 0.1, h * 0.08)
+        }
+      }
+    }
+
+    if (block.construction && scale > 0.27) {
+      const height = Math.min(h * 0.6, 90 * scale)
+      ctx.strokeStyle = 'rgba(255, 190, 84, 0.64)'
+      ctx.lineWidth = Math.max(0.7, 1.2 * scale)
+      ctx.beginPath()
+      ctx.moveTo(0, h * 0.2)
+      ctx.lineTo(0, h * 0.2 - height)
+      ctx.lineTo(w * 0.28, h * 0.2 - height * 0.72)
+      ctx.moveTo(0, h * 0.2 - height)
+      ctx.lineTo(-w * 0.18, h * 0.2 - height * 0.84)
+      ctx.stroke()
+    }
+
     ctx.strokeStyle = 'rgba(139, 188, 188, 0.16)'
     ctx.lineWidth = 0.7
     ctx.strokeRect(-w / 2, -h / 2, w, h)
@@ -598,6 +614,82 @@ function drawBlockGround(ctx, camera, width, height, data) {
       }
     }
     ctx.restore()
+  }
+}
+
+function drawExpressways(ctx, camera, width, height, data, scale) {
+  if (scale < 0.27) return
+  for (const highway of data.highways) {
+    const path = () => {
+      ctx.beginPath()
+      highway.points.forEach(([x, y], index) => {
+        const p = worldToScreen(camera, width, height, x, y)
+        if (index === 0) ctx.moveTo(p.x, p.y)
+        else ctx.lineTo(p.x, p.y)
+      })
+    }
+
+    // Elevated shadow.
+    ctx.save()
+    ctx.translate(10, 13)
+    path()
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.38)'
+    ctx.lineWidth = Math.max(4, highway.width * scale + 10)
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.stroke()
+    ctx.restore()
+
+    // Concrete deck and edge barriers.
+    path()
+    ctx.strokeStyle = 'rgba(4, 8, 10, 0.98)'
+    ctx.lineWidth = Math.max(4, highway.width * scale + 6)
+    ctx.stroke()
+    ctx.strokeStyle = 'rgba(75, 86, 90, 0.96)'
+    ctx.lineWidth = Math.max(3, highway.width * scale)
+    ctx.stroke()
+    ctx.strokeStyle = 'rgba(154, 171, 172, 0.28)'
+    ctx.lineWidth = Math.max(0.7, 1.2)
+    ctx.stroke()
+
+    if (scale > 0.36) {
+      path()
+      ctx.setLineDash([Math.max(3, 10 * scale), Math.max(3, 9 * scale)])
+      ctx.strokeStyle = 'rgba(255, 190, 95, 0.65)'
+      ctx.lineWidth = Math.max(0.6, 1.2 * scale)
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
+
+    // Support columns along the viaduct.
+    if (scale > 0.55) {
+      for (let i = 0; i < highway.points.length - 1; i += 1) {
+        const [x1, y1] = highway.points[i]
+        const [x2, y2] = highway.points[i + 1]
+        const length = Math.hypot(x2 - x1, y2 - y1)
+        const count = Math.floor(length / 120)
+        const nx = -(y2 - y1) / Math.max(1, length)
+        const ny = (x2 - x1) / Math.max(1, length)
+        for (let j = 0; j <= count; j += 1) {
+          const t = j / Math.max(1, count)
+          const x = x1 + (x2 - x1) * t
+          const y = y1 + (y2 - y1) * t
+          for (const side of [-1, 1]) {
+            const p = worldToScreen(
+              camera,
+              width,
+              height,
+              x + nx * side * (highway.width / 2 + 2),
+              y + ny * side * (highway.width / 2 + 2),
+            )
+            ctx.fillStyle = 'rgba(18, 25, 27, 0.9)'
+            ctx.beginPath()
+            ctx.arc(p.x, p.y, Math.max(0.8, 1.8 * scale), 0, Math.PI * 2)
+            ctx.fill()
+          }
+        }
+      }
+    }
   }
 }
 
@@ -711,8 +803,50 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId) {
     let baseColor = shade(buildingColor(b.district, b.height, b.type), toneShift)
     if (b.type === 'container') {
       baseColor = CONTAINER_COLORS[Math.floor(b.tone * CONTAINER_COLORS.length) % CONTAINER_COLORS.length]
+    } else if (b.style && STYLE_TINTS[b.style]) {
+      baseColor = mixColor(baseColor, STYLE_TINTS[b.style], 0.3)
     }
     const accent = districtColors.get(b.district) || '#53e0d0'
+
+    if (b.shape === 'cross' || b.shape === 'L' || b.shape === 'U') {
+      const offset = Math.min(12, b.height * scale * 0.12)
+      const cos = Math.cos(b.angle)
+      const sin = Math.sin(b.angle)
+      const paint = (fill) => {
+        ctx.fillStyle = fill
+        if (b.shape === 'cross') {
+          ctx.fillRect(-w / 2, -h / 2, w, h)
+          ctx.fillRect(-w * 0.16, -h * 0.72, w * 0.32, h * 1.44)
+        } else if (b.shape === 'L') {
+          ctx.fillRect(-w / 2, -h / 2, w * 0.64, h)
+          ctx.fillRect(-w / 2, h * 0.05, w, h * 0.45)
+        } else {
+          ctx.fillRect(-w / 2, -h / 2, w, h * 0.42)
+          ctx.fillRect(-w / 2, -h / 2, w * 0.28, h)
+          ctx.fillRect(w * 0.22, -h / 2, w * 0.28, h)
+        }
+      }
+      ctx.save()
+      ctx.translate(p.x + offset, p.y + offset)
+      ctx.rotate(b.angle)
+      paint('rgba(0, 0, 0, 0.2)')
+      ctx.restore()
+      ctx.save()
+      ctx.translate(p.x, p.y)
+      ctx.rotate(b.angle)
+      paint(shade(baseColor, -0.18))
+      ctx.restore()
+      if (hoveredId === b.id) {
+        ctx.save()
+        ctx.translate(p.x, p.y)
+        ctx.rotate(b.angle)
+        ctx.strokeStyle = '#ffd36a'
+        ctx.lineWidth = 1.5
+        ctx.strokeRect(-w / 2, -h / 2, w, h)
+        ctx.restore()
+      }
+      continue
+    }
 
     if (b.shape === 'round') {
       const radius = Math.max(1, Math.min(w, h) / 2)
@@ -865,6 +999,64 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId) {
         ctx.fillStyle = 'rgba(255, 208, 110, 0.5)'
         ctx.fillRect(cx - w * 0.16, cy - h * 0.06, 1.6, 1.6)
         ctx.fillRect(cx + w * 0.12, cy + h * 0.1, 1.3, 1.3)
+
+        if (b.roof === 'skylight') {
+          ctx.fillStyle = 'rgba(192, 239, 245, 0.34)'
+          ctx.fillRect(cx - w * 0.26, cy - h * 0.05, w * 0.52, h * 0.1)
+          ctx.fillStyle = 'rgba(220, 250, 250, 0.5)'
+          ctx.fillRect(cx - w * 0.2, cy - h * 0.02, w * 0.4, 1.2)
+        } else if (b.roof === 'cooling') {
+          ctx.fillStyle = 'rgba(22, 34, 36, 0.7)'
+          for (let i = -2; i <= 2; i += 1) {
+            ctx.fillRect(cx + i * w * 0.14 - 2, cy - h * 0.12, w * 0.08, h * 0.16)
+          }
+        } else if (b.roof === 'garden') {
+          ctx.fillStyle = 'rgba(54, 126, 80, 0.5)'
+          ctx.fillRect(cx - w * 0.3, cy - h * 0.2, w * 0.6, h * 0.4)
+        } else if (b.roof === 'solar') {
+          ctx.strokeStyle = 'rgba(104, 170, 190, 0.5)'
+          ctx.lineWidth = 0.7
+          for (let i = -1; i <= 1; i += 1) {
+            for (let j = -1; j <= 1; j += 1) {
+              ctx.strokeRect(cx + i * w * 0.2 - w * 0.08, cy + j * h * 0.18 - h * 0.06, w * 0.16, h * 0.12)
+            }
+          }
+        } else if (b.roof === 'billboard') {
+          ctx.fillStyle = 'rgba(255, 54, 146, 0.58)'
+          ctx.fillRect(cx - w * 0.3, cy - h * 0.52, w * 0.6, h * 0.18)
+          ctx.fillStyle = 'rgba(255, 234, 245, 0.75)'
+          ctx.fillRect(cx - w * 0.22, cy - h * 0.45, w * 0.34, 1.2)
+          ctx.fillRect(cx - w * 0.22, cy - h * 0.41, w * 0.2, 1)
+        } else if (b.roof === 'sawtooth') {
+          ctx.strokeStyle = 'rgba(190, 220, 220, 0.32)'
+          ctx.lineWidth = 0.8
+          ctx.beginPath()
+          for (let i = 0; i < 5; i += 1) {
+            const x = cx - w * 0.34 + i * w * 0.16
+            ctx.moveTo(x, cy + h * 0.18)
+            ctx.lineTo(x + w * 0.08, cy - h * 0.14)
+            ctx.lineTo(x + w * 0.16, cy + h * 0.18)
+          }
+          ctx.stroke()
+        } else if (b.roof === 'arch') {
+          ctx.strokeStyle = 'rgba(186, 224, 226, 0.36)'
+          ctx.lineWidth = 1.4
+          ctx.beginPath()
+          ctx.arc(cx, cy + h * 0.16, Math.min(w, h) * 0.36, Math.PI, 0)
+          ctx.stroke()
+        } else if (b.roof === 'open') {
+          ctx.strokeStyle = 'rgba(204, 204, 184, 0.24)'
+          ctx.lineWidth = 0.7
+          for (let i = -2; i <= 2; i += 1) {
+            ctx.beginPath()
+            ctx.moveTo(cx + i * w * 0.13, cy - h * 0.28)
+            ctx.lineTo(cx + i * w * 0.13, cy + h * 0.28)
+            ctx.stroke()
+          }
+        } else if (b.roof === 'canopy') {
+          ctx.fillStyle = 'rgba(255, 176, 84, 0.36)'
+          ctx.fillRect(cx - w * 0.26, cy - h * 0.08, w * 0.52, h * 0.06)
+        }
       }
     }
 
@@ -1137,6 +1329,7 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
     drawBuildings(ctx, camera, width, height, data, scale, options.hoveredBuilding)
   }
 
+  drawExpressways(ctx, camera, width, height, data, scale)
   if (options.traffic !== false) drawTraffic(ctx, camera, width, height, data, scale, time)
   drawStreetLights(ctx, camera, width, height, data, scale)
   drawLandmarks(ctx, camera, width, height, data, scale)
