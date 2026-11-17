@@ -246,6 +246,46 @@ function drawLand(ctx, camera, width, height, data) {
   ctx.restore()
 }
 
+function drawRivers(ctx, camera, width, height, data) {
+  for (const river of data.rivers || []) {
+    ctx.save()
+    ctx.beginPath()
+    tracePolygon(ctx, camera, width, height, river.poly)
+    ctx.fillStyle = '#04131b'
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(79, 182, 198, 0.34)'
+    ctx.lineWidth = 1.2
+    ctx.stroke()
+    ctx.strokeStyle = 'rgba(79, 182, 198, 0.06)'
+    ctx.lineWidth = 12
+    ctx.stroke()
+
+    if (camera.scale > 0.12) {
+      const xs = river.poly.map((p) => p[0])
+      const ys = river.poly.map((p) => p[1])
+      const minX = Math.min(...xs)
+      const maxX = Math.max(...xs)
+      const minY = Math.min(...ys)
+      const maxY = Math.max(...ys)
+      ctx.strokeStyle = 'rgba(117, 190, 202, 0.08)'
+      ctx.lineWidth = 0.7
+      for (let y = Math.floor(minY / 160) * 160; y < maxY; y += 160) {
+        const a = worldToScreen(camera, width, height, minX, y)
+        const b = worldToScreen(camera, width, height, maxX, y)
+        ctx.beginPath()
+        for (let i = 0; i <= 6; i += 1) {
+          const x = a.x + ((b.x - a.x) * i) / 6
+          const yy = a.y + Math.sin(i * 1.3 + y * 0.01) * 2
+          if (i === 0) ctx.moveTo(x, yy)
+          else ctx.lineTo(x, yy)
+        }
+        ctx.stroke()
+      }
+    }
+    ctx.restore()
+  }
+}
+
 function drawParks(ctx, camera, width, height, data) {
   const scale = camera.scale
   for (const park of data.parks) {
@@ -740,6 +780,62 @@ function drawRamps(ctx, camera, width, height, data, scale) {
   }
 }
 
+function drawBridges(ctx, camera, width, height, data, scale) {
+  if (scale < 0.04) return
+  for (const bridge of data.bridges || []) {
+    const path = () => {
+      ctx.beginPath()
+      bridge.points.forEach(([x, y], index) => {
+        const p = worldToScreen(camera, width, height, x, y)
+        if (index === 0) ctx.moveTo(p.x, p.y)
+        else ctx.lineTo(p.x, p.y)
+      })
+    }
+    ctx.save()
+    ctx.translate(5, 8)
+    path()
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.34)'
+    ctx.lineWidth = Math.max(3, bridge.width * scale + 8)
+    ctx.stroke()
+    ctx.restore()
+
+    path()
+    ctx.strokeStyle = 'rgba(4, 8, 10, 0.98)'
+    ctx.lineWidth = Math.max(3, bridge.width * scale + 5)
+    ctx.stroke()
+    path()
+    ctx.strokeStyle = 'rgba(86, 103, 107, 0.96)'
+    ctx.lineWidth = Math.max(2, bridge.width * scale)
+    ctx.stroke()
+
+    if (scale > 0.4) {
+      path()
+      ctx.setLineDash([Math.max(2, 7 * scale), Math.max(2, 7 * scale)])
+      ctx.strokeStyle = 'rgba(255, 205, 126, 0.55)'
+      ctx.lineWidth = Math.max(0.5, 0.9 * scale)
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
+
+    // Suspension towers and cable fans.
+    if (scale > 0.3) {
+      for (const [tx, ty] of bridge.towers || []) {
+        const p = worldToScreen(camera, width, height, tx, ty)
+        const size = Math.max(2, 26 * scale)
+        ctx.fillStyle = 'rgba(44, 57, 61, 0.95)'
+        ctx.fillRect(p.x - size * 0.35, p.y - size, size * 0.7, size * 1.5)
+        ctx.strokeStyle = 'rgba(180, 213, 214, 0.38)'
+        ctx.lineWidth = Math.max(0.6, 0.9 * scale)
+        ctx.beginPath()
+        ctx.moveTo(p.x - size * 0.35, p.y - size)
+        ctx.lineTo(p.x, p.y - size * 0.55)
+        ctx.lineTo(p.x + size * 0.35, p.y - size)
+        ctx.stroke()
+      }
+    }
+  }
+}
+
 function drawInterchanges(ctx, camera, width, height, data, scale) {
   if (scale < 0.3) return
   for (const node of data.interchanges || []) {
@@ -871,7 +967,7 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId) {
     if (b.type === 'container') {
       baseColor = CONTAINER_COLORS[Math.floor(b.tone * CONTAINER_COLORS.length) % CONTAINER_COLORS.length]
     } else if (b.style && STYLE_TINTS[b.style]) {
-      baseColor = mixColor(baseColor, STYLE_TINTS[b.style], 0.3)
+      baseColor = mixColor(baseColor, STYLE_TINTS[b.style], 0.42)
     }
     const accent = districtColors.get(b.district) || '#53e0d0'
 
@@ -1123,6 +1219,18 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId) {
         } else if (b.roof === 'canopy') {
           ctx.fillStyle = 'rgba(255, 176, 84, 0.36)'
           ctx.fillRect(cx - w * 0.26, cy - h * 0.08, w * 0.52, h * 0.06)
+        } else if (b.roof === 'watertower') {
+          ctx.fillStyle = 'rgba(48, 42, 34, 0.9)'
+          ctx.beginPath()
+          ctx.arc(cx + w * 0.15, cy - h * 0.08, Math.min(4.5, w * 0.12), 0, Math.PI * 2)
+          ctx.fill()
+          ctx.strokeStyle = 'rgba(120, 104, 82, 0.55)'
+          ctx.lineWidth = 0.7
+          ctx.stroke()
+          ctx.beginPath()
+          ctx.moveTo(cx + w * 0.15 - 3, cy - h * 0.08 + 3)
+          ctx.lineTo(cx + w * 0.15 + 3, cy - h * 0.08 + 3)
+          ctx.stroke()
         }
       }
     }
@@ -1384,6 +1492,7 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
   }
   drawCityGlow(ctx, camera, width, height, data)
   if (options.districts !== false) drawDistricts(ctx, camera, width, height, data, options.selectedDistrict)
+  drawRivers(ctx, camera, width, height, data)
   drawParks(ctx, camera, width, height, data)
   drawRoads(ctx, camera, width, height, data, scale)
 
@@ -1398,6 +1507,7 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
 
   drawRamps(ctx, camera, width, height, data, scale)
   drawExpressways(ctx, camera, width, height, data, scale)
+  drawBridges(ctx, camera, width, height, data, scale)
   drawInterchanges(ctx, camera, width, height, data, scale)
   if (options.traffic !== false) drawTraffic(ctx, camera, width, height, data, scale, time)
   drawStreetLights(ctx, camera, width, height, data, scale)
@@ -1431,6 +1541,20 @@ export function drawMinimap(ctx, data, camera, width, height, mainWidth, mainHei
   ctx.strokeStyle = 'rgba(74, 190, 205, 0.4)'
   ctx.lineWidth = 1
   ctx.stroke()
+
+  for (const river of data.rivers || []) {
+    ctx.beginPath()
+    river.poly.forEach(([x, y], index) => {
+      if (index === 0) ctx.moveTo(tx(x), ty(y))
+      else ctx.lineTo(tx(x), ty(y))
+    })
+    ctx.closePath()
+    ctx.fillStyle = '#04131b'
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(74, 190, 205, 0.3)'
+    ctx.lineWidth = 0.7
+    ctx.stroke()
+  }
 
   for (const district of data.districts) {
     ctx.beginPath()

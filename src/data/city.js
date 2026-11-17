@@ -38,6 +38,20 @@ export const CITY_FOOTPRINT = [
   [-10500, 3000],
 ]
 
+
+export const RIVERS = [
+  {
+    id: 'hudson',
+    name: '哈德逊河',
+    poly: [[-3400, -8000], [-2400, -8000], [-2400, 7000], [-3400, 7000]],
+  },
+  {
+    id: 'east-river',
+    name: '东河',
+    poly: [[2400, -8000], [3400, -8000], [3400, 6500], [2400, 6500]],
+  },
+]
+
 export const DISTRICTS = [
   {
     id: 'core',
@@ -58,16 +72,12 @@ export const DISTRICTS = [
     detail:
       '中枢的地面几乎不属于行人。高架步道把塔楼连成一座悬空的城，街道则留给货运无人机和装甲车。最低处的旧地铁仍在运行，站台上贴满了失踪者的照片。',
     poly: [
-      [-4200, -3100],
-      [1200, -3100],
-      [1200, -2500],
-      [4200, -2500],
-      [4200, 2150],
-      [600, 2150],
-      [600, 1550],
-      [-4200, 1550],
+      [-2400, -3600],
+      [2400, -3600],
+      [2400, 1200],
+      [-2400, 1200],
     ],
-    centroid: [1000, -500],
+    centroid: [0, -1000],
   },
   {
     id: 'ring',
@@ -88,14 +98,12 @@ export const DISTRICTS = [
     detail:
       '环城的天际线由重复的住宅塔和空中连廊组成。第七超级街区是最大的一个，住着二十六万人，拥有自己的市场、学校和地下法庭。市政厅的巡逻车只在主路上出现。',
     poly: [
-      [-4200, -8000],
-      [4200, -8000],
-      [4200, -2500],
-      [1200, -2500],
-      [1200, -3100],
-      [-4200, -3100],
+      [-2400, -7800],
+      [2400, -7800],
+      [2400, -3600],
+      [-2400, -3600],
     ],
-    centroid: [0, -5500],
+    centroid: [0, -5600],
   },
   {
     id: 'strip',
@@ -116,17 +124,12 @@ export const DISTRICTS = [
     detail:
       '霓虹巷的每一面墙都在播放内容，每一个人都在生产内容。这里的犯罪率很高，但摄像头更多；真正危险的，是那些没有被拍到的角落。',
     poly: [
-      [-4200, 1550],
-      [600, 1550],
-      [600, 2150],
-      [4200, 2150],
-      [4200, 6000],
-      [3000, 6500],
-      [0, 6000],
-      [-3000, 6300],
-      [-4200, 6000],
+      [-2400, 1200],
+      [2400, 1200],
+      [2400, 6200],
+      [-2400, 6200],
     ],
-    centroid: [500, 3600],
+    centroid: [0, 3500],
   },
   {
     id: 'rust',
@@ -147,12 +150,12 @@ export const DISTRICTS = [
     detail:
       '锈带的空气有金属味。夜班工人戴着过滤面罩穿过蒸汽管廊，孩子们在废料场里捡铜线。铁工联说，只要高炉还亮着，零号城就不算死。',
     poly: [
-      [-10500, -8000],
-      [-4200, -8000],
-      [-4200, 1550],
-      [-10500, 1550],
+      [-10500, -7800],
+      [-3200, -7800],
+      [-3200, 1500],
+      [-10500, 1500],
     ],
-    centroid: [-7300, -3000],
+    centroid: [-7000, -3000],
   },
   {
     id: 'harbor',
@@ -173,14 +176,13 @@ export const DISTRICTS = [
     detail:
       '旧港的码头有一半泡在水里。涨潮时，第三号泊位会消失；退潮时，能捡到从别的大陆漂来的东西。潮汐帮的规矩只有一条：货可以丢，人不能。',
     poly: [
-      [-10500, 1550],
-      [-4200, 1550],
-      [-4200, 6000],
-      [-6000, 5900],
-      [-9000, 5200],
-      [-10500, 3000],
+      [-10500, 1500],
+      [-3200, 1500],
+      [-3200, 6500],
+      [-9000, 6700],
+      [-10500, 5300],
     ],
-    centroid: [-7000, 3400],
+    centroid: [-7000, 3600],
   },
   {
     id: 'outlands',
@@ -201,14 +203,14 @@ export const DISTRICTS = [
     detail:
       '外野的地面白天烫得能煎蛋，晚上冷得能冻裂电池。荒原车队把这里当作中转站，也当作退路。空港的雷达已经坏了三年，但每天仍有飞机在没有许可的情况下降落。',
     poly: [
-      [4200, -8000],
-      [10500, -8000],
-      [10500, 6000],
-      [8000, 6500],
-      [5000, 6200],
-      [4200, 6000],
+      [3200, -7800],
+      [10500, -7800],
+      [10500, 6100],
+      [9000, 6700],
+      [5000, 6300],
+      [3200, 6200],
     ],
-    centroid: [7300, -1000],
+    centroid: [7000, -1000],
   },
 ]
 
@@ -223,60 +225,81 @@ export const DISTRICT_BY_ID = Object.fromEntries(DISTRICTS.map((district) => [di
 
 export const PARKS = [
   {
-    id: 'reservoir',
-    name: '中央水库公园',
+    id: 'central-park',
+    name: '中央公园',
     kind: 'park',
-    centroid: [-2000, -1800],
-    poly: [
-      [-2380, -2080],
-      [-1620, -2080],
-      [-1620, -1520],
-      [-2380, -1520],
-    ],
-    water: [
-      [-2220, -1980],
-      [-1780, -1980],
-      [-1780, -1650],
-      [-2220, -1650],
-    ],
+    centroid: [0, -5600],
+    poly: [[-700, -7100], [700, -7100], [700, -4200], [-700, -4200]],
+    water: [[-320, -6350], [320, -6350], [320, -5450], [-320, -5450]],
     paths: [
-      [[-2380, -1800], [-2140, -1840], [-1900, -1780], [-1620, -1820]],
-      [[-2000, -2080], [-1980, -1860], [-1940, -1640], [-1980, -1520]],
+      [[-700, -5600], [-300, -5700], [0, -5550], [300, -5700], [700, -5600]],
+      [[0, -7100], [0, -6500], [0, -5600], [0, -4700], [0, -4200]],
     ],
   },
   {
-    id: 'ring-park',
-    name: '环城绿带',
+    id: 'bryant-park',
+    name: '布莱恩特公园',
     kind: 'park',
-    centroid: [-1400, -6700],
-    poly: [
-      [-1740, -6940],
-      [-1060, -6940],
-      [-1060, -6460],
-      [-1740, -6460],
-    ],
-    water: [
-      [-1600, -6820],
-      [-1200, -6820],
-      [-1200, -6600],
-      [-1600, -6600],
-    ],
-    paths: [
-      [[-1740, -6700], [-1420, -6740], [-1060, -6680]],
-    ],
+    centroid: [0, -1450],
+    poly: [[-260, -1660], [260, -1660], [260, -1280], [-260, -1280]],
+    water: null,
+    paths: [[[-260, -1470], [260, -1470]]],
   },
   {
-    id: 'solar-field',
-    name: '荒原太阳能阵列',
-    kind: 'solar',
-    centroid: [10000, 1500],
-    poly: [
-      [9300, 600],
-      [10700, 600],
-      [10700, 2400],
-      [9300, 2400],
-    ],
+    id: 'battery-park',
+    name: '炮台公园',
+    kind: 'park',
+    centroid: [0, 5950],
+    poly: [[-520, 5750], [520, 5750], [520, 6250], [-520, 6250]],
+    water: null,
+    paths: [[[-520, 6000], [520, 6000]]],
   },
+]
+
+export const BRIDGES = [
+  {
+    id: 'north-bridge', name: '北河大桥', width: 24,
+    points: [[1950, -6000], [3450, -6000]],
+    towers: [[2300, -6000], [3100, -6000]],
+  },
+  {
+    id: 'williamsburg', name: '威廉斯堡大桥', width: 22,
+    points: [[2000, 1800], [3450, 2000]],
+    towers: [[2500, 1860], [3100, 1940]],
+  },
+  {
+    id: 'brooklyn-bridge', name: '布鲁克林大桥', width: 22,
+    points: [[1900, 4200], [3450, 4300]],
+    towers: [[2500, 4250], [3100, 4270]],
+  },
+  {
+    id: 'west-bridge', name: '西河大桥', width: 20,
+    points: [[-1900, 4500], [-3450, 4700]],
+    towers: [[-2500, 4590], [-3100, 4660]],
+  },
+]
+
+export const EXPRESSWAYS = [
+  {
+    id: 'west-side', name: '西侧高速', width: 26, elevated: true,
+    points: [[-2300, -7800], [-2300, -4000], [-2250, 1000], [-1950, 3000], [-1200, 5900]],
+  },
+  {
+    id: 'fdr', name: '东侧高速', width: 26, elevated: true,
+    points: [[2300, -7800], [2300, -4000], [2250, 1000], [1950, 3000], [1200, 5900]],
+  },
+  {
+    id: 'bqe', name: '东岸高速', width: 30, elevated: true,
+    points: [[3700, -7800], [3700, -4000], [3900, 1000], [4600, 4000], [6000, 6000]],
+  },
+]
+
+export const INTERCHANGES = [
+  { id: 'north-bridge-west', x: 1950, y: -6000, type: 'partial' },
+  { id: 'north-bridge-east', x: 3450, y: -6000, type: 'partial' },
+  { id: 'williamsburg-west', x: 2000, y: 1800, type: 'partial' },
+  { id: 'brooklyn-west', x: 1900, y: 4200, type: 'partial' },
+  { id: 'west-bridge-east', x: -1900, y: 4500, type: 'partial' },
 ]
 
 export const AIRPORT = {
@@ -289,71 +312,6 @@ export const AIRPORT = {
   angle: 0,
 }
 
-
-export const EXPRESSWAYS = [
-  {
-    id: 'ring-express',
-    name: '环城高架',
-    width: 34,
-    elevated: true,
-    closed: true,
-    points: [
-      [-5400, -2600], [-5400, -3900], [-4300, -3900], [4300, -3900], [5400, -2800],
-      [5400, 2600], [4300, 3700], [-4300, 3700], [-5400, 2600], [-5400, -2600],
-    ],
-  },
-  {
-    id: 'north-radial',
-    name: '北环放射线',
-    width: 30,
-    elevated: true,
-    points: [[0, -3900], [0, -5600], [0, -8000]],
-  },
-  {
-    id: 'south-radial',
-    name: '南环放射线',
-    width: 30,
-    elevated: true,
-    points: [[0, 3700], [0, 4900], [0, 6200]],
-  },
-  {
-    id: 'west-radial',
-    name: '西环放射线',
-    width: 28,
-    elevated: true,
-    points: [[-5400, 0], [-7000, 0], [-8500, -500], [-10400, -1000]],
-  },
-  {
-    id: 'east-radial',
-    name: '东环放射线',
-    width: 28,
-    elevated: true,
-    points: [[5400, 0], [7000, -600], [8400, -2000], [9000, -3000]],
-  },
-  {
-    id: 'harbor-spur',
-    name: '旧港支线',
-    width: 26,
-    elevated: true,
-    points: [[-5400, 2200], [-6100, 2800], [-6500, 3300]],
-  },
-  {
-    id: 'airport-spur',
-    name: '空港支线',
-    width: 26,
-    elevated: true,
-    points: [[8400, -2000], [8500, -2600], [8500, -3200]],
-  },
-]
-
-export const INTERCHANGES = [
-  { id: 'ring-north', x: 0, y: -3900, type: 'full' },
-  { id: 'ring-south', x: 0, y: 3700, type: 'full' },
-  { id: 'ring-west', x: -5400, y: 0, type: 'full' },
-  { id: 'ring-east', x: 5400, y: 0, type: 'full' },
-  { id: 'harbor-ramp', x: -5400, y: 2200, type: 'partial' },
-  { id: 'airport-ramp', x: 8400, y: -2000, type: 'partial' },
-]
 
 export const FACTIONS = [
   {
@@ -433,8 +391,8 @@ export const POIS = [
     en: 'HELIOS SPIRE',
     type: 'tower',
     district: 'core',
-    x: 1800,
-    y: -1800,
+    x: 9000,
+    y: -5000,
     height: 620,
     desc: '零号城最高建筑。塔顶的人造太阳每天亮二十小时，为中枢的广告牌和私人泳池供电。',
     status: '警戒',
@@ -445,8 +403,8 @@ export const POIS = [
     en: 'CENTRAL EXCHANGE',
     type: 'finance',
     district: 'core',
-    x: 500,
-    y: -700,
+    x: 0,
+    y: -900,
     height: 310,
     desc: '零号城的水、电、粮食和债务在这里被切成小块，卖给看不见的人。',
     status: '运行中',
@@ -457,8 +415,8 @@ export const POIS = [
     en: 'CIVIC HALL',
     type: 'gov',
     district: 'ring',
-    x: -3600,
-    y: -5400,
+    x: -1000,
+    y: -5000,
     height: 120,
     desc: '一栋被防爆墙围起来的旧办公楼。市长办公室的灯常年亮着，但没人见过市长下班。',
     status: '封锁',
@@ -481,7 +439,7 @@ export const POIS = [
     en: 'NEON TOWER',
     type: 'media',
     district: 'strip',
-    x: 900,
+    x: 600,
     y: 2600,
     height: 280,
     desc: '夜莺传媒的总部。塔身四面都是屏幕，二十四小时播放零号城最受欢迎的真人秀。',
@@ -493,8 +451,8 @@ export const POIS = [
     en: 'NIGHT MARKET',
     type: 'market',
     district: 'strip',
-    x: -600,
-    y: 3500,
+    x: -300,
+    y: 3000,
     height: 20,
     desc: '凌晨两点最热闹的市场。你可以买到假身份、真器官，或者一段别人的记忆。',
     status: '营业',
@@ -565,8 +523,8 @@ export const POIS = [
     en: 'SOLAR ARRAY',
     type: 'solar',
     district: 'outlands',
-    x: 10300,
-    y: 1400,
+    x: 10000,
+    y: 1500,
     height: 18,
     desc: '三万面镜子把盐碱地的阳光聚成一束，卖给中枢。到了晚上，镜面会像一片沉默的湖。',
     status: '并网',
@@ -577,8 +535,8 @@ export const POIS = [
     en: 'CENTRAL RESERVOIR PARK',
     type: 'park',
     district: 'core',
-    x: -2000,
-    y: -1800,
+    x: 0,
+    y: -5900,
     height: 12,
     desc: '中枢最大的开放空间。旧水库被改造成公园，水面下仍能看见旧城教堂的尖顶。',
     status: '开放',
@@ -589,8 +547,8 @@ export const POIS = [
     en: 'BLACK CLINIC',
     type: 'medical',
     district: 'strip',
-    x: -1200,
-    y: 3000,
+    x: -900,
+    y: 3400,
     height: 16,
     desc: '没有执照，没有排队，没有记录。医生以前是赫利俄斯的生物工程师，现在只收现金。',
     status: '营业',
@@ -601,8 +559,8 @@ export const POIS = [
     en: 'ZERO ARENA',
     type: 'arena',
     district: 'strip',
-    x: 2600,
-    y: 3700,
+    x: 1200,
+    y: 4200,
     height: 80,
     desc: '每周五晚，八个帮派各派一名代表进入铁笼。赢家拿走奖金，输家拿走编号。',
     status: '售票中',
@@ -613,8 +571,8 @@ export const POIS = [
     en: 'OVERPASS',
     type: 'transit',
     district: 'core',
-    x: 3200,
-    y: 300,
+    x: 1800,
+    y: 500,
     height: 35,
     desc: '零号城唯一一条从未完全堵死的路。因为它有三层，而大多数人只知道两层。',
     status: '拥堵',

@@ -1,5 +1,6 @@
 import {
   AIRPORT,
+  BRIDGES,
   CITY_FOOTPRINT,
   DISTRICTS,
   EXPRESSWAYS,
@@ -7,14 +8,15 @@ import {
   INTERCHANGES,
   PARKS,
   POIS,
+  RIVERS,
   WORLD,
 } from '../data/city.js'
 
 const TAU = Math.PI * 2
 const CELL = 600
 const ROAD_CELL = 280
-const GRID_X = 200
-const GRID_Y = 150
+const GRID_X = 250
+const GRID_Y = 100
 const START_X = -10400
 const START_Y = -7900
 const COLS = Math.ceil((10500 - START_X) / GRID_X)
@@ -57,6 +59,14 @@ function pointInAirport(x, y, margin = 0) {
 
 function pointInPark(x, y, parks) {
   return parks.some((park) => pointInPolygon(x, y, park.poly))
+}
+
+function pointInRiver(x, y) {
+  return RIVERS.some((river) => pointInPolygon(x, y, river.poly))
+}
+
+function isLand(x, y) {
+  return pointInPolygon(x, y, CITY_FOOTPRINT) && !pointInRiver(x, y)
 }
 
 function pointSegmentDistance(px, py, segment) {
@@ -175,6 +185,8 @@ function pickMorphology(kind, random) {
 
 function styleFor(type, district, random) {
   if (type === 'container') return 'metal'
+  if (type === 'brownstone' || type === 'tenement') return random > 0.25 ? 'brick' : 'concrete'
+  if (type === 'walkup') return random > 0.55 ? 'brick' : 'concrete'
   if (type === 'tower' || type === 'office') return random > 0.25 ? 'glass' : 'concrete'
   if (type === 'housing') return random > 0.55 ? 'brick' : 'concrete'
   if (type === 'industrial' || type === 'warehouse' || type === 'factory') return random > 0.5 ? 'metal' : 'brick'
@@ -203,7 +215,7 @@ export function generateCity() {
     if (i < 0 || j < 0 || i >= COLS || j >= ROWS) return null
     const x = START_X + (i + 0.5) * GRID_X
     const y = START_Y + (j + 0.5) * GRID_Y
-    if (!pointInPolygon(x, y, CITY_FOOTPRINT)) return null
+    if (!isLand(x, y)) return null
     if (pointInPark(x, y, parks)) return { x, y, park: true }
     if (pointInAirport(x, y, 10)) return { x, y, airport: true }
     const district = DISTRICTS.find((item) => pointInPolygon(x, y, item.poly))
@@ -219,54 +231,69 @@ export function generateCity() {
   // where it hits the city edge, a park, or the airport.
   for (let i = 0; i <= COLS; i += 1) {
     const x = START_X + i * GRID_X
-    const boundary = [-4200, 600, 1200, 4200].some((value) => Math.abs(x - value) < 1)
-    const width = boundary ? 24 : i % 8 === 0 ? 19 : i % 4 === 0 ? 11 : 6
+    const manhattan = x > -2400 && x < 2400
+    const width = manhattan ? (i % 4 === 0 ? 26 : 10) : i % 6 === 0 ? 17 : 8
     let runStart = null
     for (let j = 0; j < ROWS; j += 1) {
       const y1 = START_Y + j * GRID_Y
       const y2 = y1 + GRID_Y
       const cellA = cellInfo(i - 1, j)
       const cellB = cellInfo(i, j)
-      const skipLocal = width < 11 && (i * 13 + j * 7) % 9 === 0
+      const skipLocal = width < 12 && (i * 13 + j * 7) % 11 === 0
       const keep =
         !skipLocal &&
-        pointInPolygon(x, (y1 + y2) / 2, CITY_FOOTPRINT) &&
+        isLand(x, (y1 + y2) / 2) &&
         ((cellA && !cellA.park && !cellA.airport) || (cellB && !cellB.park && !cellB.airport))
       if (keep && runStart === null) runStart = y1
       if (!keep && runStart !== null) {
-        roads.push({ x1: x, y1: runStart, x2: x, y2: y1, width, kind: width > 11 ? 'arterial' : 'local', axis: 'v' })
+        roads.push({ x1: x, y1: runStart, x2: x, y2: y1, width, kind: width > 12 ? 'arterial' : 'local', axis: 'v' })
         runStart = null
       }
     }
     if (runStart !== null) {
-      roads.push({ x1: x, y1: runStart, x2: x, y2: START_Y + ROWS * GRID_Y, width, kind: width > 11 ? 'arterial' : 'local', axis: 'v' })
+      roads.push({ x1: x, y1: runStart, x2: x, y2: START_Y + ROWS * GRID_Y, width, kind: width > 12 ? 'arterial' : 'local', axis: 'v' })
     }
   }
 
   for (let j = 0; j <= ROWS; j += 1) {
     const y = START_Y + j * GRID_Y
-    const boundary = [-3100, -2500, 1550, 2150].some((value) => Math.abs(y - value) < 1)
-    const width = boundary ? 24 : j % 8 === 0 ? 19 : j % 4 === 0 ? 11 : 6
+    const width = j % 8 === 0 ? 20 : 10
     let runStart = null
     for (let i = 0; i < COLS; i += 1) {
       const x1 = START_X + i * GRID_X
       const x2 = x1 + GRID_X
       const cellA = cellInfo(i, j - 1)
       const cellB = cellInfo(i, j)
-      const skipLocal = width < 11 && (i * 7 + j * 13) % 9 === 0
+      const skipLocal = width < 12 && (i * 7 + j * 13) % 11 === 0
       const keep =
         !skipLocal &&
-        pointInPolygon((x1 + x2) / 2, y, CITY_FOOTPRINT) &&
+        isLand((x1 + x2) / 2, y) &&
         ((cellA && !cellA.park && !cellA.airport) || (cellB && !cellB.park && !cellB.airport))
       if (keep && runStart === null) runStart = x1
       if (!keep && runStart !== null) {
-        roads.push({ x1: runStart, y1: y, x2: x1, y2: y, width, kind: width > 11 ? 'arterial' : 'local', axis: 'h' })
+        roads.push({ x1: runStart, y1: y, x2: x1, y2: y, width, kind: width > 12 ? 'arterial' : 'local', axis: 'h' })
         runStart = null
       }
     }
     if (runStart !== null) {
-      roads.push({ x1: runStart, y1: y, x2: START_X + COLS * GRID_X, y2: y, width, kind: width > 11 ? 'arterial' : 'local', axis: 'h' })
+      roads.push({ x1: runStart, y1: y, x2: START_X + COLS * GRID_X, y2: y, width, kind: width > 12 ? 'arterial' : 'local', axis: 'h' })
     }
+  }
+
+  // Broadway: the one diagonal that breaks the Manhattan grid.
+  const broadway = [
+    [-2250, -7900], [-1600, -4700], [-900, -2200], [-100, 800], [700, 3300], [1150, 5900],
+  ]
+  for (let i = 0; i < broadway.length - 1; i += 1) {
+    roads.push({
+      x1: broadway[i][0],
+      y1: broadway[i][1],
+      x2: broadway[i + 1][0],
+      y2: broadway[i + 1][1],
+      width: 24,
+      kind: 'arterial',
+      axis: 'diagonal',
+    })
   }
 
   const blockW = GRID_X - 26
@@ -308,6 +335,7 @@ export function generateCity() {
 
       const isBuildable = (x, y) =>
         pointInPolygon(x, y, CITY_FOOTPRINT) &&
+        !pointInRiver(x, y) &&
         !pointInPark(x, y, parks) &&
         !pointInAirport(x, y, 8) &&
         pointInPolygon(x, y, district.poly)
@@ -355,6 +383,76 @@ export function generateCity() {
         }
         const [min, max] = ranges[district.id] || [10, 60]
         return Math.max(4, Math.round((min + Math.pow(rand(), 2.1) * (max - min)) * multiplier))
+      }
+
+      if (district.id === 'ring' || district.id === 'core' || district.id === 'strip') {
+        const rowDepth = innerH * 0.3
+        const rowY = innerH * 0.31
+        const towerChance = district.id === 'core' ? 0.18 : district.id === 'strip' ? 0.11 : 0.035
+        const plazaChance = district.id === 'core' ? 0.05 : 0.035
+        const roll = rand()
+
+        if (roll < plazaChance) {
+          block.plaza = true
+          block.courtyard = { w: innerW * 0.9, h: innerH * 0.7, green: true }
+          addLocal(0, innerH * 0.3, 14, 9, 5, 'civic', 'rect', rand(), 'garden', 'concrete')
+        } else if (roll < plazaChance + towerChance) {
+          const bw = innerW * (0.3 + rand() * 0.18)
+          const bd = innerH * (0.42 + rand() * 0.2)
+          addLocal(0, 0, bw, bd, baseHeight(1.15), 'tower', 'rect', rand(), 'spire', 'glass')
+          addLocal(-innerW * 0.33, innerH * 0.28, innerW * 0.24, rowDepth, baseHeight(0.32), 'office', 'rect', rand(), 'flat', 'concrete')
+          addLocal(innerW * 0.33, -innerH * 0.28, innerW * 0.24, rowDepth, baseHeight(0.28), 'office', 'rect', rand(), 'flat', 'concrete')
+        } else {
+          const count = Math.max(5, Math.round(innerW / 19))
+          const step = innerW / count
+          const heights = {
+            ring: [12, 48],
+            core: [25, 170],
+            strip: [18, 135],
+          }[district.id]
+          for (const side of [-1, 1]) {
+            for (let index = 0; index < count; index += 1) {
+              if (rand() > 0.97) continue
+              const width = step * (0.76 + rand() * 0.16)
+              const depth = rowDepth * (0.8 + rand() * 0.25)
+              const x = -innerW / 2 + (index + 0.5) * step
+              const y = side * rowY
+              const height =
+                heights[0] + Math.pow(rand(), 2.35) * (heights[1] - heights[0])
+              const type =
+                district.id === 'ring'
+                  ? rand() > 0.55
+                    ? 'brownstone'
+                    : 'walkup'
+                  : district.id === 'core'
+                    ? rand() > 0.42
+                      ? 'office'
+                      : 'tower'
+                    : rand() > 0.55
+                      ? 'tenement'
+                      : 'mixed'
+              const roof =
+                rand() > 0.94
+                  ? 'watertower'
+                  : rand() > 0.9
+                    ? 'garden'
+                    : rand() > 0.87
+                      ? 'billboard'
+                      : 'flat'
+              addLocal(x, y, width, depth, Math.round(height), type, 'rect', rand(), roof)
+            }
+          }
+          block.courtyard = {
+            w: innerW * 0.86,
+            h: innerH * 0.32,
+            green: rand() > 0.58,
+          }
+        }
+
+        block.height = created ? totalHeight / created : 0
+        block.density = created / 18
+        blocks.push(block)
+        continue
       }
 
       if (morph === 'plaza') {
@@ -640,6 +738,8 @@ export function generateCity() {
     blocks,
     roads,
     highways: EXPRESSWAYS,
+    bridges: BRIDGES,
+    rivers: RIVERS,
     ramps,
     interchanges: INTERCHANGES,
     trafficRoutes,
