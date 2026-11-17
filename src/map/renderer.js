@@ -192,45 +192,41 @@ function drawGrid(ctx, camera, width, height) {
   ctx.restore()
 }
 
-function drawWater(ctx, camera, width, height, data) {
+function drawLand(ctx, camera, width, height, data) {
   ctx.save()
   const gradient = ctx.createLinearGradient(0, 0, 0, height)
   gradient.addColorStop(0, '#07141c')
-  gradient.addColorStop(0.5, '#040d13')
+  gradient.addColorStop(0.55, '#040d13')
   gradient.addColorStop(1, '#02070a')
   ctx.fillStyle = gradient
-  ctx.beginPath()
-  tracePolygon(ctx, camera, width, height, data.water)
-  ctx.fill()
+  ctx.fillRect(0, 0, width, height)
 
-  // Water contour texture.
-  ctx.strokeStyle = 'rgba(110, 190, 205, 0.055)'
+  // Water texture outside the city edge.
+  ctx.strokeStyle = 'rgba(110, 190, 205, 0.045)'
   ctx.lineWidth = 1
-  const bounds = cameraBounds(camera, width, height)
-  const step = 900
-  for (let y = Math.floor(bounds.minY / step) * step; y < bounds.maxY; y += step) {
-    const a = worldToScreen(camera, width, height, bounds.minX, y)
-    const b = worldToScreen(camera, width, height, bounds.maxX, y)
+  for (let y = 0; y < height; y += 26) {
     ctx.beginPath()
     for (let i = 0; i <= 8; i += 1) {
-      const x = a.x + ((b.x - a.x) * i) / 8
-      const yy = a.y + Math.sin(i * 1.4 + y * 0.001) * 6
+      const x = (width * i) / 8
+      const yy = y + Math.sin(i * 1.4 + y * 0.02) * 4
       if (i === 0) ctx.moveTo(x, yy)
       else ctx.lineTo(x, yy)
     }
     ctx.stroke()
   }
 
-  ctx.strokeStyle = 'rgba(74, 190, 205, 0.34)'
-  ctx.lineWidth = 1.4
-  ctx.beginPath()
-  tracePolygon(ctx, camera, width, height, data.water)
-  ctx.stroke()
-  ctx.strokeStyle = 'rgba(74, 190, 205, 0.07)'
-  ctx.lineWidth = 12
-  ctx.beginPath()
-  tracePolygon(ctx, camera, width, height, data.water)
-  ctx.stroke()
+  if (data.cityFootprint) {
+    ctx.beginPath()
+    tracePolygon(ctx, camera, width, height, data.cityFootprint)
+    ctx.fillStyle = '#0a1114'
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(74, 190, 205, 0.42)'
+    ctx.lineWidth = 1.6
+    ctx.stroke()
+    ctx.strokeStyle = 'rgba(74, 190, 205, 0.08)'
+    ctx.lineWidth = 14
+    ctx.stroke()
+  }
   ctx.restore()
 }
 
@@ -388,10 +384,10 @@ function drawDistricts(ctx, camera, width, height, data, selectedId) {
     const selected = district.id === selectedId
     ctx.beginPath()
     tracePolygon(ctx, camera, width, height, district.poly)
-    ctx.fillStyle = rgba(district.color, selected ? 0.07 : 0.025)
+    ctx.fillStyle = rgba(district.color, selected ? 0.11 : 0.05)
     ctx.fill()
-    ctx.strokeStyle = rgba(district.color, selected ? 0.7 : 0.2)
-    ctx.lineWidth = selected ? 1.5 : 1
+    ctx.strokeStyle = rgba(district.color, selected ? 0.78 : 0.34)
+    ctx.lineWidth = selected ? 1.6 : 1
     ctx.setLineDash(selected ? [] : [7, 7])
     ctx.stroke()
     ctx.setLineDash([])
@@ -583,6 +579,24 @@ function drawBlockGround(ctx, camera, width, height, data) {
     ctx.strokeStyle = 'rgba(139, 188, 188, 0.16)'
     ctx.lineWidth = 0.7
     ctx.strokeRect(-w / 2, -h / 2, w, h)
+
+    if (scale > 0.72 && w > 12 && h > 12) {
+      ctx.fillStyle = 'rgba(74, 143, 102, 0.5)'
+      const treeInset = Math.min(w, h) * 0.04
+      const positions = [
+        [-w / 2 + treeInset, -h / 2 + treeInset],
+        [w / 2 - treeInset, -h / 2 + treeInset],
+        [-w / 2 + treeInset, h / 2 - treeInset],
+        [w / 2 - treeInset, h / 2 - treeInset],
+        [0, -h / 2 + treeInset],
+        [0, h / 2 - treeInset],
+      ]
+      for (const [tx, ty] of positions) {
+        ctx.beginPath()
+        ctx.arc(tx, ty, Math.min(2.6, Math.max(0.8, 1.2 * scale)), 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
     ctx.restore()
   }
 }
@@ -793,24 +807,25 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId) {
         ctx.stroke()
       }
 
-      if (veryDetailed && b.height > 48 && w > 8 && h > 8) {
+      if (veryDetailed && b.height > 20 && w > 8 && h > 8) {
         const cx = (roof[0].x + roof[1].x + roof[2].x + roof[3].x) / 4
         const cy = (roof[0].y + roof[1].y + roof[2].y + roof[3].y) / 4
-        const inset = 0.58
-        ctx.beginPath()
-        roof.forEach((corner, index) => {
-          const x = cx + (corner.x - cx) * inset
-          const y = cy + (corner.y - cy) * inset
-          if (index === 0) ctx.moveTo(x, y)
-          else ctx.lineTo(x, y)
-        })
-        ctx.closePath()
-        ctx.fillStyle = 'rgba(125, 205, 207, 0.13)'
-        ctx.fill()
-
-        ctx.fillStyle = 'rgba(7, 17, 20, 0.5)'
-        ctx.fillRect(cx - w * 0.24, cy - h * 0.08, w * 0.16, h * 0.11)
-        ctx.fillRect(cx + w * 0.08, cy - h * 0.03, w * 0.1, h * 0.08)
+        ctx.fillStyle = 'rgba(7, 17, 20, 0.48)'
+        ctx.fillRect(cx - w * 0.28, cy - h * 0.16, w * 0.16, h * 0.12)
+        ctx.fillRect(cx + w * 0.1, cy - h * 0.04, w * 0.1, h * 0.08)
+        if (b.height > 48) {
+          const inset = 0.58
+          ctx.beginPath()
+          roof.forEach((corner, index) => {
+            const x = cx + (corner.x - cx) * inset
+            const y = cy + (corner.y - cy) * inset
+            if (index === 0) ctx.moveTo(x, y)
+            else ctx.lineTo(x, y)
+          })
+          ctx.closePath()
+          ctx.fillStyle = 'rgba(125, 205, 207, 0.13)'
+          ctx.fill()
+        }
 
         if (b.tone > 0.8) {
           ctx.strokeStyle = rgba(accent, 0.55)
@@ -1085,8 +1100,15 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
   ctx.fillStyle = '#05080b'
   ctx.fillRect(0, 0, width, height)
 
-  if (options.grid !== false) drawGrid(ctx, camera, width, height)
-  drawWater(ctx, camera, width, height, data)
+  drawLand(ctx, camera, width, height, data)
+  if (options.grid !== false) {
+    ctx.save()
+    ctx.beginPath()
+    tracePolygon(ctx, camera, width, height, data.cityFootprint)
+    ctx.clip()
+    drawGrid(ctx, camera, width, height)
+    ctx.restore()
+  }
   drawCityGlow(ctx, camera, width, height, data)
   if (options.districts !== false) drawDistricts(ctx, camera, width, height, data, options.selectedDistrict)
   drawParks(ctx, camera, width, height, data)
@@ -1121,13 +1143,17 @@ export function drawMinimap(ctx, data, camera, width, height, mainWidth, mainHei
   ctx.fillRect(0, 0, width, height)
 
   ctx.beginPath()
-  data.water.forEach(([x, y], index) => {
+  const footprint = data.cityFootprint || []
+  footprint.forEach(([x, y], index) => {
     if (index === 0) ctx.moveTo(tx(x), ty(y))
     else ctx.lineTo(tx(x), ty(y))
   })
   ctx.closePath()
-  ctx.fillStyle = '#06131b'
+  ctx.fillStyle = '#0a1215'
   ctx.fill()
+  ctx.strokeStyle = 'rgba(74, 190, 205, 0.4)'
+  ctx.lineWidth = 1
+  ctx.stroke()
 
   for (const district of data.districts) {
     ctx.beginPath()
