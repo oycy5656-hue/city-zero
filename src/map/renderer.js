@@ -57,14 +57,16 @@ export function clampCamera(camera, width, height) {
   const halfH = height / (2 * camera.scale)
   const cx = (WORLD.minX + WORLD.maxX) / 2
   const cy = (WORLD.minY + WORLD.maxY) / 2
+  const extraX = halfW * 0.35
+  const extraY = halfH * 0.35
   const x =
     halfW * 2 >= WORLD.width
       ? cx
-      : clamp(camera.x, WORLD.minX + halfW, WORLD.maxX - halfW)
+      : clamp(camera.x, WORLD.minX + halfW - extraX, WORLD.maxX - halfW + extraX)
   const y =
     halfH * 2 >= WORLD.height
       ? cy
-      : clamp(camera.y, WORLD.minY + halfH, WORLD.maxY - halfH)
+      : clamp(camera.y, WORLD.minY + halfH - extraY, WORLD.maxY - halfH + extraY)
   return { ...camera, x, y, scale: clamp(camera.scale, MIN_SCALE, MAX_SCALE) }
 }
 
