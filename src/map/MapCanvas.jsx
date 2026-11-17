@@ -7,7 +7,7 @@ import {
   useState,
 } from 'react'
 import { DISTRICT_BY_ID, WORLD } from '../data/city.js'
-import { buildBuildingIndex, expandRoads, hitTestBuildings } from './generator.js'
+import { buildBuildingIndex, expandRoads, hitTestBuildings, pointInPolygon } from './generator.js'
 import {
   ROAD_TILE_SIZE,
   TILE_SIZE,
@@ -505,19 +505,9 @@ const MapCanvas = forwardRef(function MapCanvas(
       }
     }
 
-    const district = [...data.districts].reverse().find((item) => {
-      let inside = false
-      const poly = item.poly
-      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-        const xi = poly[i][0]
-        const yi = poly[i][1]
-        const xj = poly[j][0]
-        const yj = poly[j][1]
-        const intersect = yi > world.y !== yj > world.y && world.x < ((xj - xi) * (world.y - yi)) / (yj - yi) + xi
-        if (intersect) inside = !inside
-      }
-      return inside
-    })
+    const district = [...data.districts].reverse().find((item) =>
+      (item.areas?.length ? item.areas : [item.poly]).some((poly) => pointInPolygon(world.x, world.y, poly)),
+    )
     if (district) {
       onSelectDistrict(district.id)
       setHoverInfo(null)

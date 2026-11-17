@@ -509,6 +509,7 @@ function drawParkLabels(ctx, camera, width, height, data, scale) {
   for (const { park, p } of parks.slice(0, 20)) {
     const label = localizeParkName(park.name)
     if (!label) continue
+    if (label === '公园' && (park.area || 0) < 50000) continue
     ctx.font = '600 11px "Noto Sans SC", "Microsoft YaHei", sans-serif'
     const metrics = ctx.measureText(label)
     const w = metrics.width + 14
@@ -540,6 +541,10 @@ function drawCityGlow(ctx, camera, width, height, data) {
   ctx.restore()
 }
 
+function districtPolygons(district) {
+  return district.areas && district.areas.length ? district.areas : [district.poly]
+}
+
 function drawDistricts(ctx, camera, width, height, data, selectedId) {
   ctx.save()
   if (data.cityFootprint) {
@@ -549,15 +554,17 @@ function drawDistricts(ctx, camera, width, height, data, selectedId) {
   }
   for (const district of data.districts) {
     const selected = district.id === selectedId
-    ctx.beginPath()
-    tracePolygon(ctx, camera, width, height, district.poly)
-    ctx.fillStyle = rgba(district.color, selected ? 0.11 : 0.05)
-    ctx.fill()
-    ctx.strokeStyle = rgba(district.color, selected ? 0.78 : 0.34)
-    ctx.lineWidth = selected ? 1.6 : 1
-    ctx.setLineDash(selected ? [] : [7, 7])
-    ctx.stroke()
-    ctx.setLineDash([])
+    for (const poly of districtPolygons(district)) {
+      ctx.beginPath()
+      tracePolygon(ctx, camera, width, height, poly)
+      ctx.fillStyle = rgba(district.color, selected ? 0.11 : 0.05)
+      ctx.fill()
+      ctx.strokeStyle = rgba(district.color, selected ? 0.78 : 0.34)
+      ctx.lineWidth = selected ? 1.6 : 1
+      ctx.setLineDash(selected ? [] : [7, 7])
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
   }
   ctx.restore()
 }
@@ -1007,12 +1014,14 @@ function drawDistrictOutlines(ctx, camera, width, height, data, selectedId) {
     ctx.clip()
   }
   for (const district of data.districts) {
-    ctx.beginPath()
-    tracePolygon(ctx, camera, width, height, district.poly)
-    ctx.strokeStyle = rgba(district.color, district.id === selectedId ? 0.9 : 0.42)
-    ctx.lineWidth = district.id === selectedId ? 1.8 : 1
-    ctx.setLineDash(district.id === selectedId ? [] : [9, 7])
-    ctx.stroke()
+    for (const poly of districtPolygons(district)) {
+      ctx.beginPath()
+      tracePolygon(ctx, camera, width, height, poly)
+      ctx.strokeStyle = rgba(district.color, district.id === selectedId ? 0.9 : 0.42)
+      ctx.lineWidth = district.id === selectedId ? 1.8 : 1
+      ctx.setLineDash(district.id === selectedId ? [] : [9, 7])
+      ctx.stroke()
+    }
   }
   ctx.setLineDash([])
   ctx.restore()
@@ -1841,17 +1850,19 @@ export function drawMinimap(ctx, data, camera, width, height, mainWidth, mainHei
   }
 
   for (const district of data.districts) {
-    ctx.beginPath()
-    district.poly.forEach(([x, y], index) => {
-      if (index === 0) ctx.moveTo(tx(x), ty(y))
-      else ctx.lineTo(tx(x), ty(y))
-    })
-    ctx.closePath()
-    ctx.fillStyle = rgba(district.color, 0.16)
-    ctx.fill()
-    ctx.strokeStyle = rgba(district.color, 0.42)
-    ctx.lineWidth = 0.8
-    ctx.stroke()
+    for (const poly of districtPolygons(district)) {
+      ctx.beginPath()
+      poly.forEach(([x, y], index) => {
+        if (index === 0) ctx.moveTo(tx(x), ty(y))
+        else ctx.lineTo(tx(x), ty(y))
+      })
+      ctx.closePath()
+      ctx.fillStyle = rgba(district.color, 0.16)
+      ctx.fill()
+      ctx.strokeStyle = rgba(district.color, 0.42)
+      ctx.lineWidth = 0.8
+      ctx.stroke()
+    }
   }
 
   ctx.strokeStyle = 'rgba(255, 180, 84, 0.45)'

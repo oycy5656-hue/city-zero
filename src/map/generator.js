@@ -138,7 +138,7 @@ export function normalizeStreamBuilding(feature, id) {
   const year = Number(props.CONSTRUCTION_YEAR) || 0
   const style = year && year < 1930 ? 'brick' : year && year < 1975 ? 'concrete' : h > 90 ? 'glass' : 'concrete'
   const type = h > 120 ? 'tower' : h > 55 ? 'office' : h > 28 ? 'midrise' : h > 16 ? 'walkup' : 'rowhouse'
-  const district = DISTRICTS.find((item) => pointInPolygon(cx, cy, item.poly))?.id || 'core'
+  const district = DISTRICTS.find((item) => (item.areas?.length ? item.areas : [item.poly]).some((poly) => pointInPolygon(cx, cy, poly)))?.id || 'manhattan'
   return {
     id,
     bin: props.BIN || null,
