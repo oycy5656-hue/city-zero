@@ -1,6 +1,6 @@
 import map from './nyc-map.json'
 
-export const WORLD = { ...map.WORLD, name: '纽约', english: 'NEW YORK CITY', year: '2088' }
+export const WORLD = { ...map.WORLD, name: '新纽约', english: 'NEW NEW YORK', year: '2077' }
 export const CITY_AREAS = map.CITY_AREAS
 export const DISTRICTS = map.DISTRICTS
 export const DISTRICT_BY_ID = Object.fromEntries(DISTRICTS.map((district) => [district.id, district]))

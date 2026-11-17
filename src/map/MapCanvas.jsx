@@ -496,7 +496,7 @@ const MapCanvas = forwardRef(function MapCanvas(
           y: screenY,
           title: building.name ? building.name : `BIN ${building.bin || String(building.id).slice(-7)}`,
           lines: [
-            `${DISTRICT_BY_ID[building.district]?.name || '纽约'} · ${building.type}`,
+            `${DISTRICT_BY_ID[building.district]?.name || '新纽约'} · ${building.type}`,
             `高度 ${building.height.toFixed(1)} m · ${building.floors} 层`,
             `建造年份 ${building.year || '未知'} · ${building.bbl || ''}`,
           ],
@@ -564,7 +564,7 @@ const MapCanvas = forwardRef(function MapCanvas(
           y: point.y,
           title: building.name ? building.name : `BIN ${building.bin || String(building.id).slice(-7)}`,
           lines: [
-            `${DISTRICT_BY_ID[building.district]?.name || '纽约'} · ${building.type}`,
+            `${DISTRICT_BY_ID[building.district]?.name || '新纽约'} · ${building.type}`,
             `高度 ${building.height.toFixed(1)} m · ${building.floors} 层`,
           ],
         })
@@ -712,7 +712,7 @@ const MapCanvas = forwardRef(function MapCanvas(
         <span className="map-hud__divider" />
         <span>{data.districts.length} SECTORS</span>
         <span className="map-hud__divider" />
-        <span>NYC OPEN DATA</span>
+        <span>NYC 2077</span>
       </div>
 
       <div className="map-hud map-hud--bottom">

@@ -13,10 +13,10 @@ const initialDistricts = DISTRICTS.map((district, index) => ({
 }))
 
 const initialLog = [
-  { id: 1, time: '23:47', district: 'manhattan', text: '帝国大厦进入夜间警戒。', tone: 'info' },
-  { id: 2, time: '23:31', district: 'brooklyn', text: '布鲁克林码头报告不明货柜。', tone: 'warn' },
-  { id: 3, time: '22:58', district: 'bronx', text: '南布朗克斯供水压力下降 14%。', tone: 'danger' },
-  { id: 4, time: '22:12', district: 'queens', text: '肯尼迪机场雷达再次离线。', tone: 'info' },
+  { id: 1, time: '23:47', district: 'manhattan', text: '赫利俄斯塔进入夜间警戒。', tone: 'info' },
+  { id: 2, time: '23:31', district: 'brooklyn', text: '自由区码头报告不明货柜。', tone: 'warn' },
+  { id: 3, time: '22:58', district: 'bronx', text: '铁工联炼化厂压力下降 14%。', tone: 'danger' },
+  { id: 4, time: '22:12', district: 'queens', text: '自由港雷达再次离线。', tone: 'info' },
 ]
 
 function formatTime(city) {
@@ -56,7 +56,7 @@ export default function App() {
     const query = search.trim().toLowerCase()
     if (!query) return []
     const districtResults = districts
-      .filter((district) => `${district.name} ${district.en} ${district.type}`.toLowerCase().includes(query))
+      .filter((district) => `${district.name} ${district.realName || ''} ${district.en} ${district.type}`.toLowerCase().includes(query))
       .map((district) => ({
         type: 'district',
         id: district.id,
@@ -64,7 +64,7 @@ export default function App() {
         en: district.en,
       }))
     const poiResults = data.pois
-      .filter((poi) => `${poi.name} ${poi.en}`.toLowerCase().includes(query))
+      .filter((poi) => `${poi.name} ${poi.alias || ''} ${poi.realName || ''} ${poi.en}`.toLowerCase().includes(query))
       .map((poi) => ({
         type: 'poi',
         id: poi.id,
@@ -399,8 +399,8 @@ export default function App() {
           <div className="boot-screen__grid" aria-hidden="true" />
           <div className="boot-screen__inner">
             <span className="boot-screen__mark">NY</span>
-            <p className="hud-label">NEW YORK / URBAN OPERATIONS</p>
-            <h1>纽约</h1>
+            <p className="hud-label">NEW NEW YORK / 2077</p>
+            <h1>新纽约</h1>
             <p>正在载入五区边界与社区数据 · {data.stats.buildings.toLocaleString('zh-CN')} 栋建筑按视口加载</p>
             <div className="boot-screen__bar"><i /></div>
             <div className="boot-screen__meta">

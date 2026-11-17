@@ -1765,17 +1765,42 @@ function drawPois(ctx, camera, width, height, data, scale, selectedPoiId) {
 function drawLandmarks(ctx, camera, width, height, data, scale) {
   ctx.save()
   for (const poi of POIS) {
-    if (poi.type !== 'tower' && poi.type !== 'media') continue
+    if (!poi.mega && poi.type !== 'tower' && poi.type !== 'media') continue
     const p = worldToScreen(camera, width, height, poi.x, poi.y)
     if (p.x < -100 || p.x > width + 100 || p.y < -100 || p.y > height + 100) continue
     const radius = Math.max(2, poi.height * scale * 0.055)
+    const color = POI_COLORS[poi.type] || '#53e0d0'
+    if (poi.mega && scale > 0.05) {
+      const beam = Math.min(150, Math.max(20, poi.height * scale * 0.28))
+      const gradient = ctx.createLinearGradient(p.x, p.y - beam, p.x, p.y)
+      gradient.addColorStop(0, rgba(color, 0))
+      gradient.addColorStop(0.55, rgba(color, 0.16))
+      gradient.addColorStop(1, rgba(color, 0.02))
+      ctx.strokeStyle = gradient
+      ctx.lineWidth = Math.max(2, 8 * scale)
+      ctx.beginPath()
+      ctx.moveTo(p.x, p.y)
+      ctx.lineTo(p.x, p.y - beam)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.arc(p.x, p.y - beam, Math.max(1, 2.2 * scale), 0, Math.PI * 2)
+      ctx.fillStyle = rgba(color, 0.6)
+      ctx.fill()
+    }
     ctx.beginPath()
     ctx.arc(p.x, p.y, radius, 0, Math.PI * 2)
-    ctx.fillStyle = 'rgba(83, 224, 208, 0.035)'
+    ctx.fillStyle = rgba(color, poi.mega ? 0.08 : 0.035)
     ctx.fill()
-    ctx.strokeStyle = 'rgba(83, 224, 208, 0.12)'
-    ctx.lineWidth = 1
+    ctx.strokeStyle = rgba(color, poi.mega ? 0.32 : 0.12)
+    ctx.lineWidth = poi.mega ? 1.3 : 1
     ctx.stroke()
+    if (poi.mega && scale > 0.18) {
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, radius * 1.65, 0, Math.PI * 2)
+      ctx.strokeStyle = rgba(color, 0.18)
+      ctx.lineWidth = 0.8
+      ctx.stroke()
+    }
   }
   ctx.restore()
 }
