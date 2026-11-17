@@ -2561,3 +2561,44 @@ input[type="range"]::-webkit-slider-thumb {
     font-size: 36px;
   }
 }
+.inspector__influence {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.inspector__influence .hud-label {
+  margin-bottom: 8px;
+}
+
+.influence-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 34px;
+  align-items: center;
+  gap: 8px;
+  margin: 7px 0;
+  font-size: 10px;
+}
+
+.influence-row__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.influence-row__track {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.influence-row__track i {
+  display: block;
+  height: 100%;
+  opacity: 0.75;
+}
+
+.influence-row strong {
+  text-align: right;
+  color: var(--text-dim);
+  font: 10px "Cascadia Mono", Consolas, monospace;
+}

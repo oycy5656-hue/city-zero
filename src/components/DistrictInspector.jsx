@@ -152,11 +152,34 @@ export default function DistrictInspector({
       <div className="inspector__faction">
         <span className="inspector__faction-mark" style={{ borderColor: faction?.color }} />
         <div>
-          <span>实际控制方</span>
+          <span>主权归属</span>
           <strong style={{ color: faction?.color }}>{faction?.name}</strong>
         </div>
         <small>{faction?.motto}</small>
       </div>
+
+      {district.factions?.length > 0 && (
+        <div className="inspector__influence">
+          <p className="hud-label">FACTION INFLUENCE / 势力渗透</p>
+          {[...district.factions]
+            .sort((a, b) => b.share - a.share)
+            .slice(0, 5)
+            .map((item) => {
+              const group = FACTION_BY_ID[item.id]
+              return (
+                <div className="influence-row" key={item.id}>
+                  <span className="influence-row__name" style={{ color: group?.color }}>
+                    {group?.name || item.id}
+                  </span>
+                  <span className="influence-row__track">
+                    <i style={{ width: `${item.share}%`, background: group?.color }} />
+                  </span>
+                  <strong>{item.share}%</strong>
+                </div>
+              )
+            })}
+        </div>
+      )}
 
       <div className="inspector__actions">
         <p className="hud-label">DIRECT ACTION</p>

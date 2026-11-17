@@ -1731,6 +1731,8 @@ function drawPois(ctx, camera, width, height, data, scale, selectedPoiId) {
   for (const poi of data.pois) {
     const p = worldToScreen(camera, width, height, poi.x, poi.y)
     if (p.x < -80 || p.x > width + 80 || p.y < -60 || p.y > height + 60) continue
+    const major = poi.mega || poi.type === 'airport' || ['empire-state','one-world','central-park','brooklyn-bridge','liberty','yankee-stadium','flushing-meadows','coney-island'].includes(poi.id)
+    if (scale < 0.16 && !major) continue
     const color = POI_COLORS[poi.type] || '#d9e6e8'
     const selected = poi.id === selectedPoiId
     const size = selected ? 10 : 7.5
@@ -1744,7 +1746,6 @@ function drawPois(ctx, camera, width, height, data, scale, selectedPoiId) {
       ctx.stroke()
     }
     drawPoiIcon(ctx, p.x, p.y, poi.type, color, size)
-    const major = poi.type === 'airport' || ['empire-state','one-world','central-park','brooklyn-bridge','liberty','yankee-stadium','flushing-meadows','coney-island'].includes(poi.id)
     if (scale > 0.16 || selected || major) {
       ctx.font = `500 ${selected ? 12 : 10}px "Noto Sans SC", "Microsoft YaHei", sans-serif`
       ctx.textAlign = 'left'
