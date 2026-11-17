@@ -601,6 +601,20 @@ function drawBlockGround(ctx, camera, width, height, data) {
   }
 }
 
+function drawDistrictOutlines(ctx, camera, width, height, data, selectedId) {
+  ctx.save()
+  for (const district of data.districts) {
+    ctx.beginPath()
+    tracePolygon(ctx, camera, width, height, district.poly)
+    ctx.strokeStyle = rgba(district.color, district.id === selectedId ? 0.9 : 0.42)
+    ctx.lineWidth = district.id === selectedId ? 1.8 : 1
+    ctx.setLineDash(district.id === selectedId ? [] : [9, 7])
+    ctx.stroke()
+  }
+  ctx.setLineDash([])
+  ctx.restore()
+}
+
 function drawLowZoomRoads(ctx, camera, width, height, data) {
   const bounds = cameraBounds(camera, width, height)
   ctx.save()
@@ -614,8 +628,8 @@ function drawLowZoomRoads(ctx, camera, width, height, data) {
     ctx.moveTo(a.x, a.y)
     ctx.lineTo(b.x, b.y)
   }
-  ctx.strokeStyle = 'rgba(63, 84, 91, 0.5)'
-  ctx.lineWidth = 0.55
+  ctx.strokeStyle = 'rgba(63, 84, 91, 0.7)'
+  ctx.lineWidth = 0.7
   ctx.stroke()
 
   ctx.beginPath()
@@ -628,8 +642,8 @@ function drawLowZoomRoads(ctx, camera, width, height, data) {
     ctx.moveTo(a.x, a.y)
     ctx.lineTo(b.x, b.y)
   }
-  ctx.strokeStyle = 'rgba(116, 145, 148, 0.55)'
-  ctx.lineWidth = 1
+  ctx.strokeStyle = 'rgba(141, 166, 168, 0.82)'
+  ctx.lineWidth = 1.25
   ctx.stroke()
 
   for (const highway of data.highways) {
@@ -1117,6 +1131,7 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
   if (scale < 0.27) {
     drawBlocks(ctx, camera, width, height, data)
     drawLowZoomRoads(ctx, camera, width, height, data)
+    if (options.districts !== false) drawDistrictOutlines(ctx, camera, width, height, data, options.selectedDistrict)
   } else {
     drawBlockGround(ctx, camera, width, height, data)
     drawBuildings(ctx, camera, width, height, data, scale, options.hoveredBuilding)
