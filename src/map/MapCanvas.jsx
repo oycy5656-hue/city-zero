@@ -8,7 +8,14 @@ import {
 } from 'react'
 import { DISTRICT_BY_ID, WORLD } from '../data/city.js'
 import { buildBuildingIndex, expandRoads, hitTestBuildings } from './generator.js'
-import { TILE_SIZE, fetchTile, tileKey } from './stream.js'
+import {
+  ROAD_TILE_SIZE,
+  TILE_SIZE,
+  fetchRoadTile,
+  fetchTile,
+  roadTileKey,
+  tileKey,
+} from './stream.js'
 import {
   MAX_SCALE,
   MIN_SCALE,
@@ -55,7 +62,14 @@ const MapCanvas = forwardRef(function MapCanvas(
   const hoverRef = useRef(null)
   const hoveredIdRef = useRef(null)
   const lastHudRef = useRef(0)
-  const streamRef = useRef({ tiles: new Map(), loading: new Set(), buildings: [], roads: [] })
+  const streamRef = useRef({
+    tiles: new Map(),
+    loading: new Set(),
+    roadTiles: new Map(),
+    roadLoading: new Set(),
+    buildings: [],
+    roads: [],
+  })
   const streamAbortRef = useRef(null)
   const renderDataRef = useRef(data)
   const [hud, setHud] = useState({ x: 0, y: 0, zoom: '1:24,000' })
@@ -147,6 +161,7 @@ const MapCanvas = forwardRef(function MapCanvas(
     [focusDistrict, focusPoint, resetView, zoomBy],
   )
 
+
   // Resize and initialize the camera.
   useEffect(() => {
     const wrap = wrapRef.current
@@ -193,7 +208,14 @@ const MapCanvas = forwardRef(function MapCanvas(
 
   useEffect(() => {
     streamAbortRef.current?.abort()
-    streamRef.current = { tiles: new Map(), loading: new Set(), buildings: [], roads: [] }
+    streamRef.current = {
+      tiles: new Map(),
+      loading: new Set(),
+      roadTiles: new Map(),
+      roadLoading: new Set(),
+      buildings: [],
+      roads: [],
+    }
     renderDataRef.current = {
       ...data,
       buildings: [],
@@ -213,12 +235,15 @@ const MapCanvas = forwardRef(function MapCanvas(
       const roads = []
       for (const tile of streamRef.current.tiles.values()) {
         buildings.push(...tile.buildings)
-        roads.push(...tile.roads)
       }
+      for (const tileRoads of streamRef.current.roadTiles.values()) {
+        roads.push(...tileRoads)
+      }
+      const extraRoads = expandRoads(roads)
       renderDataRef.current = {
         ...data,
         buildings,
-        roads: [...data.roads, ...expandRoads(roads)],
+        roads: [...data.roads, ...extraRoads],
         buildingIndex: buildBuildingIndex(buildings),
       }
     }
@@ -226,37 +251,72 @@ const MapCanvas = forwardRef(function MapCanvas(
     const loadVisible = async () => {
       const camera = cameraRef.current
       const { width, height } = sizeRef.current
-      if (!camera || width < 1 || camera.scale < 0.3) return
+      if (!camera || width < 1) return
       const bounds = cameraBounds(camera, width, height)
-      const minTx = Math.floor((bounds.minX - 200 - WORLD.minX) / TILE_SIZE)
-      const maxTx = Math.floor((bounds.maxX + 200 - WORLD.minX) / TILE_SIZE)
-      const minTy = Math.floor((bounds.minY - 200 - WORLD.minY) / TILE_SIZE)
-      const maxTy = Math.floor((bounds.maxY + 200 - WORLD.minY) / TILE_SIZE)
-      const candidates = []
-      for (let tx = minTx; tx <= maxTx; tx += 1) {
-        for (let ty = minTy; ty <= maxTy; ty += 1) {
-          const key = tileKey(tx, ty)
-          if (streamRef.current.tiles.has(key) || streamRef.current.loading.has(key)) continue
-          const cx = WORLD.minX + (tx + 0.5) * TILE_SIZE
-          const cy = WORLD.minY + (ty + 0.5) * TILE_SIZE
-          candidates.push({ tx, ty, key, distance: Math.hypot(cx - camera.x, cy - camera.y) })
+      if (camera.scale >= 0.3) {
+        const minTx = Math.floor((bounds.minX - 200 - WORLD.minX) / TILE_SIZE)
+        const maxTx = Math.floor((bounds.maxX + 200 - WORLD.minX) / TILE_SIZE)
+        const minTy = Math.floor((bounds.minY - 200 - WORLD.minY) / TILE_SIZE)
+        const maxTy = Math.floor((bounds.maxY + 200 - WORLD.minY) / TILE_SIZE)
+        const candidates = []
+        for (let tx = minTx; tx <= maxTx; tx += 1) {
+          for (let ty = minTy; ty <= maxTy; ty += 1) {
+            const key = tileKey(tx, ty)
+            if (streamRef.current.tiles.has(key) || streamRef.current.loading.has(key)) continue
+            const cx = WORLD.minX + (tx + 0.5) * TILE_SIZE
+            const cy = WORLD.minY + (ty + 0.5) * TILE_SIZE
+            candidates.push({ tx, ty, key, distance: Math.hypot(cx - camera.x, cy - camera.y) })
+          }
+        }
+        candidates.sort((a, b) => a.distance - b.distance)
+        for (const candidate of candidates.slice(0, 8)) {
+          streamRef.current.loading.add(candidate.key)
+          fetchTile(candidate.tx, candidate.ty, controller.signal)
+            .then((tile) => {
+              if (stopped) return
+              streamRef.current.tiles.set(candidate.key, tile)
+              if (streamRef.current.tiles.size > 140) {
+                const first = streamRef.current.tiles.keys().next().value
+                streamRef.current.tiles.delete(first)
+              }
+              rebuild()
+            })
+            .catch(() => {})
+            .finally(() => streamRef.current.loading.delete(candidate.key))
         }
       }
-      candidates.sort((a, b) => a.distance - b.distance)
-      for (const candidate of candidates.slice(0, 8)) {
-        streamRef.current.loading.add(candidate.key)
-        fetchTile(candidate.tx, candidate.ty, controller.signal)
-          .then((tile) => {
-            if (stopped) return
-            streamRef.current.tiles.set(candidate.key, tile)
-            if (streamRef.current.tiles.size > 140) {
-              const first = streamRef.current.tiles.keys().next().value
-              streamRef.current.tiles.delete(first)
-            }
-            rebuild()
-          })
-          .catch(() => {})
-          .finally(() => streamRef.current.loading.delete(candidate.key))
+
+      if (camera.scale >= 0.12) {
+        const minTx = Math.floor((bounds.minX - 300 - WORLD.minX) / ROAD_TILE_SIZE)
+        const maxTx = Math.floor((bounds.maxX + 300 - WORLD.minX) / ROAD_TILE_SIZE)
+        const minTy = Math.floor((bounds.minY - 300 - WORLD.minY) / ROAD_TILE_SIZE)
+        const maxTy = Math.floor((bounds.maxY + 300 - WORLD.minY) / ROAD_TILE_SIZE)
+        const candidates = []
+        for (let tx = minTx; tx <= maxTx; tx += 1) {
+          for (let ty = minTy; ty <= maxTy; ty += 1) {
+            const key = roadTileKey(tx, ty)
+            if (streamRef.current.roadTiles.has(key) || streamRef.current.roadLoading.has(key)) continue
+            const cx = WORLD.minX + (tx + 0.5) * ROAD_TILE_SIZE
+            const cy = WORLD.minY + (ty + 0.5) * ROAD_TILE_SIZE
+            candidates.push({ tx, ty, key, distance: Math.hypot(cx - camera.x, cy - camera.y) })
+          }
+        }
+        candidates.sort((a, b) => a.distance - b.distance)
+        for (const candidate of candidates.slice(0, 12)) {
+          streamRef.current.roadLoading.add(candidate.key)
+          fetchRoadTile(candidate.tx, candidate.ty, controller.signal)
+            .then((roads) => {
+              if (stopped) return
+              streamRef.current.roadTiles.set(candidate.key, roads)
+              if (streamRef.current.roadTiles.size > 140) {
+                const first = streamRef.current.roadTiles.keys().next().value
+                streamRef.current.roadTiles.delete(first)
+              }
+              rebuild()
+            })
+            .catch(() => {})
+            .finally(() => streamRef.current.roadLoading.delete(candidate.key))
+        }
       }
     }
 

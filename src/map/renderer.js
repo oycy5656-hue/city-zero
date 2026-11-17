@@ -299,9 +299,8 @@ function drawCommunities(ctx, camera, width, height, data, scale) {
   for (const community of data.communities) {
     ctx.beginPath()
     tracePolygon(ctx, camera, width, height, community.poly)
-    ctx.strokeStyle = 'rgba(214, 231, 228, 0.24)'
-    ctx.lineWidth = 0.7
-    ctx.setLineDash([4, 5])
+    ctx.strokeStyle = 'rgba(214, 231, 228, 0.16)'
+    ctx.lineWidth = 0.55
     ctx.stroke()
   }
   ctx.setLineDash([])
@@ -575,27 +574,19 @@ function drawRoads(ctx, camera, width, height, data, scale) {
       ctx.moveTo(a.x, a.y)
       ctx.lineTo(b.x, b.y)
     }
-    ctx.strokeStyle = 'rgba(5, 9, 11, 0.92)'
-    ctx.lineWidth = Math.max(0.9, roadWidth * scale + 1.4)
+    ctx.strokeStyle = 'rgba(7, 12, 14, 0.95)'
+    ctx.lineWidth = Math.max(1.8, roadWidth * scale + 2)
     ctx.stroke()
     ctx.strokeStyle =
       roadWidth >= 22
-        ? 'rgba(67, 83, 91, 0.96)'
+        ? 'rgba(143, 163, 165, 0.96)'
         : roadWidth >= 17
-          ? 'rgba(53, 72, 81, 0.95)'
+          ? 'rgba(122, 144, 148, 0.95)'
           : roadWidth >= 10
-            ? 'rgba(38, 55, 63, 0.92)'
-            : 'rgba(27, 42, 50, 0.9)'
-    ctx.lineWidth = Math.max(0.55, roadWidth * scale)
+            ? 'rgba(100, 122, 127, 0.94)'
+            : 'rgba(83, 105, 110, 0.92)'
+    ctx.lineWidth = Math.max(1.25, roadWidth * scale)
     ctx.stroke()
-
-    if (roadWidth >= 17 && scale > 0.4) {
-      ctx.setLineDash([Math.max(2, 6 * scale), Math.max(2, 7 * scale)])
-      ctx.strokeStyle = 'rgba(206, 201, 176, 0.22)'
-      ctx.lineWidth = Math.max(0.45, 0.8 * scale)
-      ctx.stroke()
-      ctx.setLineDash([])
-    }
     ctx.restore()
   }
 
@@ -1004,7 +995,7 @@ function drawLowZoomRoads(ctx, camera, width, height, data) {
   ctx.restore()
 }
 
-function drawBuildings(ctx, camera, width, height, data, scale, hoveredId) {
+function drawBuildings(ctx, camera, width, height, data, scale, hoveredId, pass = 'both') {
   const bounds = cameraBounds(camera, width, height)
   const buildings = getVisibleBuildings(data, bounds)
   const detailed = scale > 0.34
@@ -1015,7 +1006,7 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId) {
 
   // Ground shadows. Keeping these in a separate pass makes the city read as a
   // collection of volumes instead of a flat colour field.
-  if (detailed) {
+  if (detailed && pass !== 'body') {
     ctx.save()
     for (const b of buildings) {
       if (b.height < 10) continue
@@ -1058,6 +1049,8 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId) {
     }
     ctx.restore()
   }
+
+  if (pass === 'shadows') return
 
   ctx.save()
   for (const b of ordered) {
@@ -1685,7 +1678,6 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
   drawRivers(ctx, camera, width, height, data)
   drawCommunities(ctx, camera, width, height, data, scale)
   drawParks(ctx, camera, width, height, data)
-  drawRoads(ctx, camera, width, height, data, scale)
 
   const hasBlocks = data.blocks && data.blocks.length > 0
   if (scale < 0.27 && hasBlocks) {
@@ -1694,7 +1686,9 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
     if (options.districts !== false) drawDistrictOutlines(ctx, camera, width, height, data, options.selectedDistrict)
   } else {
     if (hasBlocks) drawBlockGround(ctx, camera, width, height, data)
-    drawBuildings(ctx, camera, width, height, data, scale, options.hoveredBuilding)
+    drawBuildings(ctx, camera, width, height, data, scale, options.hoveredBuilding, 'shadows')
+    drawRoads(ctx, camera, width, height, data, scale)
+    drawBuildings(ctx, camera, width, height, data, scale, options.hoveredBuilding, 'body')
     if (!hasBlocks && scale < 0.27 && options.districts !== false) {
       drawDistrictOutlines(ctx, camera, width, height, data, options.selectedDistrict)
     }
