@@ -231,17 +231,24 @@ function drawLand(ctx, camera, width, height, data) {
     ctx.stroke()
   }
 
-  if (data.cityFootprint) {
+  const areas = data.cityAreas || (data.cityFootprint ? [{ poly: data.cityFootprint }] : [])
+  for (const area of areas) {
     ctx.beginPath()
-    tracePolygon(ctx, camera, width, height, data.cityFootprint)
+    tracePolygon(ctx, camera, width, height, area.poly)
     ctx.fillStyle = '#0a1114'
     ctx.fill()
-    ctx.strokeStyle = 'rgba(74, 190, 205, 0.42)'
-    ctx.lineWidth = 1.6
+    ctx.strokeStyle = 'rgba(74, 190, 205, 0.38)'
+    ctx.lineWidth = 1.4
     ctx.stroke()
-    ctx.strokeStyle = 'rgba(74, 190, 205, 0.08)'
-    ctx.lineWidth = 14
-    ctx.stroke()
+  }
+  if (areas.length) {
+    ctx.strokeStyle = 'rgba(74, 190, 205, 0.05)'
+    ctx.lineWidth = 12
+    for (const area of areas) {
+      ctx.beginPath()
+      tracePolygon(ctx, camera, width, height, area.poly)
+      ctx.stroke()
+    }
   }
   ctx.restore()
 }
@@ -284,6 +291,38 @@ function drawRivers(ctx, camera, width, height, data) {
     }
     ctx.restore()
   }
+}
+
+function drawCommunities(ctx, camera, width, height, data, scale) {
+  if (scale < 0.09 || !data.communities) return
+  ctx.save()
+  for (const community of data.communities) {
+    ctx.beginPath()
+    tracePolygon(ctx, camera, width, height, community.poly)
+    ctx.strokeStyle = 'rgba(214, 231, 228, 0.24)'
+    ctx.lineWidth = 0.7
+    ctx.setLineDash([4, 5])
+    ctx.stroke()
+  }
+  ctx.setLineDash([])
+  if (scale > 0.28) {
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    let drawn = 0
+    for (const community of data.communities) {
+      if (drawn >= 55) break
+      const p = worldToScreen(camera, width, height, community.centroid[0], community.centroid[1])
+      if (p.x < 0 || p.x > width || p.y < 0 || p.y > height) continue
+      ctx.font = '9px "Cascadia Mono", Consolas, monospace'
+      ctx.lineWidth = 2.5
+      ctx.strokeStyle = 'rgba(3, 8, 10, 0.85)'
+      ctx.strokeText(community.name.toUpperCase(), p.x, p.y)
+      ctx.fillStyle = 'rgba(218, 230, 226, 0.55)'
+      ctx.fillText(community.name.toUpperCase(), p.x, p.y)
+      drawn += 1
+    }
+  }
+  ctx.restore()
 }
 
 function drawParks(ctx, camera, width, height, data) {
@@ -1632,16 +1671,19 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
 
   drawLand(ctx, camera, width, height, data)
   if (options.grid !== false) {
-    ctx.save()
-    ctx.beginPath()
-    tracePolygon(ctx, camera, width, height, data.cityFootprint)
-    ctx.clip()
-    drawGrid(ctx, camera, width, height)
-    ctx.restore()
+    for (const district of data.districts) {
+      ctx.save()
+      ctx.beginPath()
+      tracePolygon(ctx, camera, width, height, district.poly)
+      ctx.clip()
+      drawGrid(ctx, camera, width, height)
+      ctx.restore()
+    }
   }
   drawCityGlow(ctx, camera, width, height, data)
   if (options.districts !== false) drawDistricts(ctx, camera, width, height, data, options.selectedDistrict)
   drawRivers(ctx, camera, width, height, data)
+  drawCommunities(ctx, camera, width, height, data, scale)
   drawParks(ctx, camera, width, height, data)
   drawRoads(ctx, camera, width, height, data, scale)
 
@@ -1683,18 +1725,20 @@ export function drawMinimap(ctx, data, camera, width, height, mainWidth, mainHei
   ctx.fillStyle = 'rgba(3, 8, 10, 0.94)'
   ctx.fillRect(0, 0, width, height)
 
-  ctx.beginPath()
-  const footprint = data.cityFootprint || []
-  footprint.forEach(([x, y], index) => {
-    if (index === 0) ctx.moveTo(tx(x), ty(y))
-    else ctx.lineTo(tx(x), ty(y))
-  })
-  ctx.closePath()
-  ctx.fillStyle = '#0a1215'
-  ctx.fill()
-  ctx.strokeStyle = 'rgba(74, 190, 205, 0.4)'
-  ctx.lineWidth = 1
-  ctx.stroke()
+  const areas = data.cityAreas || (data.cityFootprint ? [{ poly: data.cityFootprint }] : [])
+  for (const area of areas) {
+    ctx.beginPath()
+    area.poly.forEach(([x, y], index) => {
+      if (index === 0) ctx.moveTo(tx(x), ty(y))
+      else ctx.lineTo(tx(x), ty(y))
+    })
+    ctx.closePath()
+    ctx.fillStyle = '#0a1215'
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(74, 190, 205, 0.36)'
+    ctx.lineWidth = 0.7
+    ctx.stroke()
+  }
 
   for (const river of data.rivers || []) {
     ctx.beginPath()

@@ -399,8 +399,8 @@ export default function App() {
           <div className="boot-screen__grid" aria-hidden="true" />
           <div className="boot-screen__inner">
             <span className="boot-screen__mark">NY</span>
-            <p className="hud-label">MANHATTAN / URBAN OPERATIONS</p>
-            <h1>曼哈顿</h1>
+            <p className="hud-label">NEW YORK / URBAN OPERATIONS</p>
+            <h1>纽约</h1>
             <p>正在载入纽约开放数据 · {data.stats.buildings.toLocaleString('zh-CN')} 栋真实建筑</p>
             <div className="boot-screen__bar"><i /></div>
             <div className="boot-screen__meta">

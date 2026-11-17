@@ -323,7 +323,7 @@ function Archive({ districts, onClose }) {
   const active = entries.find((entry) => entry.id === activeId) || entries[0]
 
   return (
-    <Overlay title="曼哈顿档案" en="ARCHIVE / MANHATTAN" onClose={onClose}>
+    <Overlay title="纽约档案" en="ARCHIVE / NEW YORK" onClose={onClose}>
       <div className="archive-layout">
         <div className="archive-list">
           {entries.map((entry) => (

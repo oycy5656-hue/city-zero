@@ -1,59 +1,61 @@
-# 曼哈顿 / MANHATTAN
+# 纽约 / NEW YORK CITY
 
-真实纽约建筑轮廓 + 真实街道中心线，叠加城市运营 / 模拟 / 战术原型。
+真实纽约五区数据 + 城市运营 / 模拟 / 战术原型。
 
-![曼哈顿真实城市地图](docs/preview.png)
+![纽约五区](docs/preview.png)
 
 ## 当前版本
 
-地图不再是程序化假纽约，而是接入 **NYC Open Data** 的曼哈顿真实数据切片：
+- **全五区**：曼哈顿、布鲁克林、皇后区、布朗克斯、斯塔滕岛
+- **778 km²** 真实陆地
+- **1,082,349 栋** NYC 建筑总量（按视口流式加载）
+- **262 个真实社区边界**（Neighborhood Tabulation Areas）
+- **5,890 段主要街道**静态加载，本地街道随建筑流式加载
+- **763 个主要公园 / 开放空间**
+- 建筑来自 NYC Open Data 真实轮廓，带 BIN / BBL / 建造年份 / 层数 / 屋顶高度
+- 地标坐标真实：帝国大厦、时报广场、世贸中心、中央公园、布鲁克林大桥、洋基体育场、法拉盛草原等
 
-- **范围**：曼哈顿下城至中央公园 / 上西区南缘
-- **31.42 km²** 真实陆地
-- **27,845 栋真实建筑轮廓**
-- **5,433 段真实街道中心线**
-- **246 个真实公园 / 开放空间**
-- 建筑带 BIN / BBL / 建造年份 / 层数 / 屋顶高度
-- 街道带真实英文路名
-- 高缩放级别显示真实街名
-- 六区是游戏性覆盖层；建筑、街道、公园形状来自真实纽约数据
+## 视口流式加载
 
-## 数据来源与许可
+不再一次性加载整座城市的建筑：
 
-本项目的城市几何来自纽约市公开数据（NYC Open Data / Department of City Planning / OTiS）：
+1. 五区边界、社区边界、主要道路、公园、地标先加载
+2. 地图缩放超过阈值后，按 **700m × 700m 瓦片**请求当前视口
+3. 每个瓦片同时拉取建筑轮廓和本地街道
+4. 内存缓存，最多保留 140 个瓦片
+5. 缩放/拖动时只补缺失瓦片，不重复请求
+6. 低缩放级别不加载单体建筑，只显示五区、社区、主要路网和公园
 
-- [Building Footprints](https://data.cityofnewyork.us/City-Government/BUILDING/5zhs-2jue)
-- [Street Centerline (LION)](https://data.cityofnewyork.us/City-Government/Centerline/inkn-q76z)
-- [Borough Boundaries](https://data.cityofnewyork.us/City-Government/Borough-Boundaries/gthc-hcne)
+建筑和本地道路的请求直接走 NYC 官方 ArcGIS 服务：
+
+`https://a841-dotweb01.nyc.gov/arcgis/rest/services/GAZETTEER/NYCDOTBaseMap_Street/MapServer`
+
+## 数据来源
+
+- [NYC Building Footprints](https://data.cityofnewyork.us/City-Government/BUILDING/5zhs-2jue)
+- [NYC Street Centerline (LION)](https://data.cityofnewyork.us/City-Government/Centerline/inkn-q76z)
+- [NYC Borough Boundaries](https://data.cityofnewyork.us/City-Government/Borough-Boundaries/gthc-hcne)
+- [NYC Neighborhood Tabulation Areas 2020](https://a841-dotweb01.nyc.gov/arcgis/rest/services/GAZETTEER/Neighborhood_Tabulation_Areas_2020/MapServer)
 - NYC DOT Base Map / Parks & Open Space
 
-数据切片边界：`-74.02, 40.70, -73.96, 40.80`（WGS84），访问时间 2026-11-18。
+五区范围：`-74.27, 40.49, -73.69, 40.92`（WGS84），访问时间 2026-11-18。
 
-建筑高度优先使用 `HEIGHT_ROOF`（英尺 → 米），缺失时用 `NUM_FLOORS × 3.2m`。建筑材质根据建造年份与高度推断，不是官方分类。
+建筑高度优先使用 `HEIGHT_ROOF`（英尺 → 米），缺失时用 `NUM_FLOORS × 3.2m`。材质根据建造年份和高度推断，不是官方分类。
 
-游戏中的城区名、势力、事件和经营数值是虚构覆盖层，不代表真实纽约行政或政治实体。
+游戏城区、势力、事件和经营数值是虚构覆盖层。
 
 ## 功能
 
-- **地图**：真实曼哈顿轮廓、东河 / 哈德逊河、中央公园、真实街区与建筑
-- **自由缩放**：滚轮 / 双指缩放、拖拽平移、双击放大、缩放按钮、小地图定位
-- **LOD**：远看真实建筑肌理与路网，近看独立建筑轮廓、屋顶设备、真实街名
-- **六区**：旧港、锈带、霓虹巷、中枢、外野、环城
-- **真实地标**：帝国大厦、时报广场、世界贸易中心、华尔街、中央车站、布鲁克林大桥等
-- **搜索**：按城区或地点搜索并聚焦
+- **全五区地图**：真实海岸线、河流、岛屿、行政区与社区边界
+- **真实社区边界**：NTA 虚线边界与社区名称
+- **视口建筑流**：缩放后逐块出现真实建筑
+- **LOD**：远景五区/社区/主要路网，中景流式建筑，近景独立建筑轮廓与屋顶
+- **六区**：中枢、旧港、霓虹巷、外野、锈带、环城（其中曼哈顿分为中城/下城两个游戏区）
+- **搜索**：按城区或地标搜索并聚焦
 - **经营**：六区税率、治安预算、基建预算、日结算
-- **模拟**：日期 / 时间推进、暂停 / 1× / 2× / 4× 速度
-- **战术**：事件列表、行动单位、战术选择、成功率结算、城区控制度与威胁变化
+- **模拟**：日期 / 时间推进、暂停 / 1× / 2× / 4×
+- **战术**：事件列表、行动单位、战术选择、成功率、控制度与威胁变化
 - **档案**：城区、势力与城市历史
-
-## 数据管线
-
-```bash
-node tools/fetch-nyc.mjs   # 从 NYC ArcGIS 拉取建筑 / 街道 / 公园 / 边界
-node tools/build-nyc.mjs   # 投影、简化、压缩为 src/data/nyc-*.json
-```
-
-拉取脚本使用 NYC DOT Base Map 的公开 ArcGIS 服务；原始 GeoJSON 不入库，仓库只保留生成后的精简数据。
 
 ## 本地开发
 
@@ -66,22 +68,31 @@ npm run preview
 
 要求 Node.js 20+。
 
+## 数据管线
+
+```bash
+node tools/fetch-nyc-all.mjs   # 拉取五区边界、主要道路、主要公园、NTA 社区
+node tools/build-nyc-all.mjs   # 投影、简化、生成 src/data/nyc-map.json
+```
+
+建筑和本地街道不下载入库，由浏览器按视口实时请求。
+
 ## 结构
 
 ```text
 src/
-├─ App.jsx                 游戏外壳、状态、经营与战术逻辑
-├─ styles.css              HUD / 面板 / 移动端样式
+├─ App.jsx                 游戏外壳、状态、经营与战术
+├─ styles.css              HUD / 面板 / 移动端
 ├─ data/
 │  ├─ city.js              对外数据入口、势力、事件、战术
 │  ├─ nyc.js               真实地图数据入口
-│  ├─ nyc-map.json         陆地、六区、公园、地标
-│  ├─ nyc-buildings.json   27,845 栋真实建筑轮廓
-│  └─ nyc-roads.json       5,433 段真实街道
+│  ├─ nyc-map.json         五区、社区、主要道路、公园、地标
+│  └─ nyc-district-meta.json
 ├─ map/
-│  ├─ generator.js         真实数据加载 + 空间索引
-│  ├─ renderer.js          Canvas 地图、真实多边形建筑、街名
-│  └─ MapCanvas.jsx        缩放 / 平移 / 点选 / 小地图
+│  ├─ generator.js         静态图层 + 建筑空间索引 + 流式建筑标准化
+│  ├─ stream.js            700m 瓦片请求与投影
+│  ├─ renderer.js          Canvas 地图、真实多边形建筑、社区、街名
+│  └─ MapCanvas.jsx        相机 / 交互 / 视口流式加载
 └─ components/
    ├─ TopBar.jsx
    ├─ DistrictRail.jsx
@@ -91,12 +102,13 @@ src/
 
 ## 性能
 
+- 首屏只加载约 2.4MB 的静态底图
+- 建筑不进入首屏 bundle
+- 视口瓦片缓存，最多 140 个
 - 建筑按 500m 网格建立空间索引
-- 建筑使用真实多边形轮廓，屏幕空间挤出，不逐个 Canvas transform
-- 远看平铺建筑肌理，近看才显示屋顶细节
-- 真实街名只在 1.0 以上缩放显示，每种街名只出现一次
-- 1920×1080 桌面端与 390px 手机端均无横向溢出
+- 低缩放不加载单体建筑
+- 真实街名只在 1.0 以上缩放显示
 
 ## 说明
 
-建筑轮廓、街道中心线与公园边界来自纽约市公开数据；游戏城区划分、经营数值、事件与势力为虚构创作。
+建筑、街道、社区、公园几何来自纽约市公开数据；游戏城区、经营数值、事件和势力为虚构创作。

@@ -7,7 +7,8 @@ import {
   useState,
 } from 'react'
 import { DISTRICT_BY_ID, WORLD } from '../data/city.js'
-import { hitTestBuildings } from './generator.js'
+import { buildBuildingIndex, expandRoads, hitTestBuildings } from './generator.js'
+import { TILE_SIZE, fetchTile, tileKey } from './stream.js'
 import {
   MAX_SCALE,
   MIN_SCALE,
@@ -54,6 +55,9 @@ const MapCanvas = forwardRef(function MapCanvas(
   const hoverRef = useRef(null)
   const hoveredIdRef = useRef(null)
   const lastHudRef = useRef(0)
+  const streamRef = useRef({ tiles: new Map(), loading: new Set(), buildings: [], roads: [] })
+  const streamAbortRef = useRef(null)
+  const renderDataRef = useRef(data)
   const [hud, setHud] = useState({ x: 0, y: 0, zoom: '1:24,000' })
   const [hoverInfo, setHoverInfo] = useState(null)
   const [scaleLabel, setScaleLabel] = useState(1)
@@ -187,6 +191,84 @@ const MapCanvas = forwardRef(function MapCanvas(
     }
   }, [focusRequest, focusDistrict, focusPoint])
 
+  useEffect(() => {
+    streamAbortRef.current?.abort()
+    streamRef.current = { tiles: new Map(), loading: new Set(), buildings: [], roads: [] }
+    renderDataRef.current = {
+      ...data,
+      buildings: [],
+      buildingIndex: new Map(),
+    }
+    return () => streamAbortRef.current?.abort()
+  }, [data])
+
+  // Viewport-streamed NYC building footprints and local streets.
+  useEffect(() => {
+    let stopped = false
+    const controller = new AbortController()
+    streamAbortRef.current = controller
+
+    const rebuild = () => {
+      const buildings = []
+      const roads = []
+      for (const tile of streamRef.current.tiles.values()) {
+        buildings.push(...tile.buildings)
+        roads.push(...tile.roads)
+      }
+      renderDataRef.current = {
+        ...data,
+        buildings,
+        roads: [...data.roads, ...expandRoads(roads)],
+        buildingIndex: buildBuildingIndex(buildings),
+      }
+    }
+
+    const loadVisible = async () => {
+      const camera = cameraRef.current
+      const { width, height } = sizeRef.current
+      if (!camera || width < 1 || camera.scale < 0.3) return
+      const bounds = cameraBounds(camera, width, height)
+      const minTx = Math.floor((bounds.minX - 200 - WORLD.minX) / TILE_SIZE)
+      const maxTx = Math.floor((bounds.maxX + 200 - WORLD.minX) / TILE_SIZE)
+      const minTy = Math.floor((bounds.minY - 200 - WORLD.minY) / TILE_SIZE)
+      const maxTy = Math.floor((bounds.maxY + 200 - WORLD.minY) / TILE_SIZE)
+      const candidates = []
+      for (let tx = minTx; tx <= maxTx; tx += 1) {
+        for (let ty = minTy; ty <= maxTy; ty += 1) {
+          const key = tileKey(tx, ty)
+          if (streamRef.current.tiles.has(key) || streamRef.current.loading.has(key)) continue
+          const cx = WORLD.minX + (tx + 0.5) * TILE_SIZE
+          const cy = WORLD.minY + (ty + 0.5) * TILE_SIZE
+          candidates.push({ tx, ty, key, distance: Math.hypot(cx - camera.x, cy - camera.y) })
+        }
+      }
+      candidates.sort((a, b) => a.distance - b.distance)
+      for (const candidate of candidates.slice(0, 5)) {
+        streamRef.current.loading.add(candidate.key)
+        fetchTile(candidate.tx, candidate.ty, controller.signal)
+          .then((tile) => {
+            if (stopped) return
+            streamRef.current.tiles.set(candidate.key, tile)
+            if (streamRef.current.tiles.size > 140) {
+              const first = streamRef.current.tiles.keys().next().value
+              streamRef.current.tiles.delete(first)
+            }
+            rebuild()
+          })
+          .catch(() => {})
+          .finally(() => streamRef.current.loading.delete(candidate.key))
+      }
+    }
+
+    const timer = window.setInterval(loadVisible, 500)
+    loadVisible()
+    return () => {
+      stopped = true
+      window.clearInterval(timer)
+      controller.abort()
+    }
+  }, [data])
+
   // Main render loop.
   useEffect(() => {
     let raf = 0
@@ -218,7 +300,7 @@ const MapCanvas = forwardRef(function MapCanvas(
         }
 
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-        drawMap(ctx, data, cameraRef.current, width, height, {
+        drawMap(ctx, renderDataRef.current, cameraRef.current, width, height, {
           selectedDistrict,
           selectedPoi,
           hoveredBuilding: hoveredIdRef.current,
@@ -232,7 +314,7 @@ const MapCanvas = forwardRef(function MapCanvas(
         })
 
         miniCtx.setTransform(dpr, 0, 0, dpr, 0, 0)
-        drawMinimap(miniCtx, data, cameraRef.current, 230, 160, width, height)
+        drawMinimap(miniCtx, renderDataRef.current, cameraRef.current, 230, 160, width, height)
 
         if (time - lastHudRef.current > 120) {
           lastHudRef.current = time
@@ -276,17 +358,17 @@ const MapCanvas = forwardRef(function MapCanvas(
     }
 
     if (cameraRef.current.scale > 0.36) {
-      const building = hitTestBuildings(data, world.x, world.y)
+      const building = hitTestBuildings(renderDataRef.current, world.x, world.y)
       if (building) {
         onSelectPoi(null)
         setHoverInfo({
           x: screenX,
           y: screenY,
-          title: `建筑 ${String(building.id).padStart(5, '0')}`,
+          title: building.name ? building.name : `BIN ${building.bin || String(building.id).slice(-7)}`,
           lines: [
-            `${DISTRICT_BY_ID[building.district]?.name || '未知城区'} · ${building.type}`,
-            `高度 ${building.height} m`,
-            `${Math.round(building.w)} × ${Math.round(building.h)} m`,
+            `${DISTRICT_BY_ID[building.district]?.name || '纽约'} · ${building.type}`,
+            `高度 ${building.height.toFixed(1)} m · ${building.floors} 层`,
+            `建造年份 ${building.year || '未知'} · ${building.bbl || ''}`,
           ],
         })
         return
@@ -351,16 +433,16 @@ const MapCanvas = forwardRef(function MapCanvas(
     // Hover inspection.
     if (cameraRef.current && cameraRef.current.scale > 0.4 && pointersRef.current.size === 0) {
       const world = screenToWorld(cameraRef.current, width, height, point.x, point.y)
-      const building = hitTestBuildings(data, world.x, world.y)
+      const building = hitTestBuildings(renderDataRef.current, world.x, world.y)
       hoveredIdRef.current = building?.id ?? null
       if (building) {
         setHoverInfo({
           x: point.x,
           y: point.y,
-          title: `建筑 ${String(building.id).padStart(5, '0')}`,
+          title: building.name ? building.name : `BIN ${building.bin || String(building.id).slice(-7)}`,
           lines: [
-            `${DISTRICT_BY_ID[building.district]?.name || '未知城区'} · ${building.type}`,
-            `高度 ${building.height} m`,
+            `${DISTRICT_BY_ID[building.district]?.name || '纽约'} · ${building.type}`,
+            `高度 ${building.height.toFixed(1)} m · ${building.floors} 层`,
           ],
         })
       } else {
@@ -503,6 +585,8 @@ const MapCanvas = forwardRef(function MapCanvas(
         <span>{data.stats.buildings.toLocaleString('zh-CN')} BUILDINGS</span>
         <span className="map-hud__divider" />
         <span>{data.districts.length} SECTORS</span>
+        <span className="map-hud__divider" />
+        <span>NYC OPEN DATA</span>
       </div>
 
       <div className="map-hud map-hud--bottom">
@@ -550,7 +634,7 @@ const MapCanvas = forwardRef(function MapCanvas(
       <div className="map-hint">
         <span>拖拽平移</span>
         <span>滚轮缩放</span>
-        <span>双击放大</span>
+        <span>放大后流式加载建筑</span>
       </div>
     </div>
   )

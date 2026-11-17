@@ -17,7 +17,7 @@ export default function DistrictRail({
     <aside className="district-rail">
       <div className="rail-header">
         <p className="hud-label">CITY COORDINATOR / 01</p>
-        <h1>曼哈顿</h1>
+        <h1>纽约</h1>
         <p className="rail-header__sub">六区共管 · 城市协调人终端</p>
         <div className="rail-stability">
           <div>

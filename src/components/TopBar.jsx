@@ -46,8 +46,8 @@ export default function TopBar({
       <div className="topbar__brand">
         <span className="topbar__mark">NY</span>
         <div>
-          <strong>曼哈顿</strong>
-          <small>MANHATTAN / NYC</small>
+          <strong>纽约</strong>
+          <small>NEW YORK CITY</small>
         </div>
       </div>
 

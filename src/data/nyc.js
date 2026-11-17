@@ -1,18 +1,16 @@
 import map from './nyc-map.json'
-import buildings from './nyc-buildings.json'
-import roads from './nyc-roads.json'
 
-export const WORLD = { ...map.WORLD, name: '曼哈顿', english: 'MANHATTAN', year: '2088' }
-export const CITY_FOOTPRINT = map.CITY_FOOTPRINT
+export const WORLD = { ...map.WORLD, name: '纽约', english: 'NEW YORK CITY', year: '2088' }
+export const CITY_AREAS = map.CITY_AREAS
 export const DISTRICTS = map.DISTRICTS
 export const DISTRICT_BY_ID = Object.fromEntries(DISTRICTS.map((district) => [district.id, district]))
+export const COMMUNITIES = map.COMMUNITIES
 export const PARKS = map.PARKS
 export const POIS = map.POIS
-export const BUILDINGS = buildings
-export const ROADS = roads
-
-// Real NYC has no need for procedural rivers/bridges here: the land polygon is
-// the Manhattan shoreline, and the East/Hudson rivers are the water background.
+export const ROADS = map.ROADS
+export const TOTAL_BUILDINGS = map.TOTAL_BUILDINGS
+export const BUILDINGS = []
+export const CITY_FOOTPRINT = null
 export const RIVERS = []
 export const BRIDGES = []
 export const EXPRESSWAYS = []
