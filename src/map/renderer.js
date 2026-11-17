@@ -432,52 +432,48 @@ function drawDistrictLabels(ctx, camera, width, height, data, selectedId) {
 
 function drawRoads(ctx, camera, width, height, data, scale) {
   const bounds = cameraBounds(camera, width, height)
+  const groups = new Map()
+  for (const road of data.roads) {
+    if (scale < 0.16 && road.width < 10) continue
+    if (Math.max(road.x1, road.x2) < bounds.minX || Math.min(road.x1, road.x2) > bounds.maxX) continue
+    if (Math.max(road.y1, road.y2) < bounds.minY || Math.min(road.y1, road.y2) > bounds.maxY) continue
+    const bucket = Math.round(road.width)
+    if (!groups.has(bucket)) groups.set(bucket, [])
+    groups.get(bucket).push(road)
+  }
 
-  // Local street fabric, only once the camera is close enough for it to matter.
-  if (scale > 0.16) {
+  for (const [roadWidth, roads] of [...groups.entries()].sort((a, b) => a[0] - b[0])) {
     ctx.save()
     ctx.beginPath()
-    for (const road of data.roads) {
-      if (road.kind !== 'local') continue
-      if (Math.max(road.x1, road.x2) < bounds.minX || Math.min(road.x1, road.x2) > bounds.maxX) continue
-      if (Math.max(road.y1, road.y2) < bounds.minY || Math.min(road.y1, road.y2) > bounds.maxY) continue
+    for (const road of roads) {
       const a = worldToScreen(camera, width, height, road.x1, road.y1)
       const b = worldToScreen(camera, width, height, road.x2, road.y2)
       ctx.moveTo(a.x, a.y)
       ctx.lineTo(b.x, b.y)
     }
-    ctx.strokeStyle = 'rgba(32, 46, 53, 0.82)'
-    ctx.lineWidth = Math.max(0.55, 8 * scale)
+    ctx.strokeStyle = 'rgba(5, 9, 11, 0.92)'
+    ctx.lineWidth = Math.max(0.9, roadWidth * scale + 1.4)
     ctx.stroke()
+    ctx.strokeStyle =
+      roadWidth >= 22
+        ? 'rgba(67, 83, 91, 0.96)'
+        : roadWidth >= 17
+          ? 'rgba(53, 72, 81, 0.95)'
+          : roadWidth >= 10
+            ? 'rgba(38, 55, 63, 0.92)'
+            : 'rgba(27, 42, 50, 0.9)'
+    ctx.lineWidth = Math.max(0.55, roadWidth * scale)
+    ctx.stroke()
+
+    if (roadWidth >= 17 && scale > 0.4) {
+      ctx.setLineDash([Math.max(2, 6 * scale), Math.max(2, 7 * scale)])
+      ctx.strokeStyle = 'rgba(206, 201, 176, 0.22)'
+      ctx.lineWidth = Math.max(0.45, 0.8 * scale)
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
     ctx.restore()
   }
-
-  // Arterial roads.
-  ctx.save()
-  ctx.beginPath()
-  for (const road of data.roads) {
-    if (road.kind !== 'arterial') continue
-    if (Math.max(road.x1, road.x2) < bounds.minX || Math.min(road.x1, road.x2) > bounds.maxX) continue
-    if (Math.max(road.y1, road.y2) < bounds.minY || Math.min(road.y1, road.y2) > bounds.maxY) continue
-    const a = worldToScreen(camera, width, height, road.x1, road.y1)
-    const b = worldToScreen(camera, width, height, road.x2, road.y2)
-    ctx.moveTo(a.x, a.y)
-    ctx.lineTo(b.x, b.y)
-  }
-  ctx.strokeStyle = 'rgba(8, 12, 15, 0.9)'
-  ctx.lineWidth = Math.max(1, 24 * scale)
-  ctx.stroke()
-  ctx.strokeStyle = 'rgba(47, 66, 75, 0.9)'
-  ctx.lineWidth = Math.max(0.8, 17 * scale)
-  ctx.stroke()
-  if (scale > 0.42) {
-    ctx.setLineDash([Math.max(2, 7 * scale), Math.max(2, 7 * scale)])
-    ctx.strokeStyle = 'rgba(206, 201, 176, 0.26)'
-    ctx.lineWidth = Math.max(0.5, 0.9 * scale)
-    ctx.stroke()
-    ctx.setLineDash([])
-  }
-  ctx.restore()
 
   // Elevated expressways are rendered after the buildings so they read as
   // overpasses instead of surface streets.
@@ -709,34 +705,35 @@ function drawDistrictOutlines(ctx, camera, width, height, data, selectedId) {
 
 function drawLowZoomRoads(ctx, camera, width, height, data) {
   const bounds = cameraBounds(camera, width, height)
-  ctx.save()
-  ctx.beginPath()
+  const groups = new Map()
   for (const road of data.roads) {
-    if (road.kind !== 'local') continue
     if (Math.max(road.x1, road.x2) < bounds.minX || Math.min(road.x1, road.x2) > bounds.maxX) continue
     if (Math.max(road.y1, road.y2) < bounds.minY || Math.min(road.y1, road.y2) > bounds.maxY) continue
-    const a = worldToScreen(camera, width, height, road.x1, road.y1)
-    const b = worldToScreen(camera, width, height, road.x2, road.y2)
-    ctx.moveTo(a.x, a.y)
-    ctx.lineTo(b.x, b.y)
+    const bucket = Math.round(road.width)
+    if (!groups.has(bucket)) groups.set(bucket, [])
+    groups.get(bucket).push(road)
   }
-  ctx.strokeStyle = 'rgba(63, 84, 91, 0.7)'
-  ctx.lineWidth = 0.7
-  ctx.stroke()
 
-  ctx.beginPath()
-  for (const road of data.roads) {
-    if (road.kind !== 'arterial') continue
-    if (Math.max(road.x1, road.x2) < bounds.minX || Math.min(road.x1, road.x2) > bounds.maxX) continue
-    if (Math.max(road.y1, road.y2) < bounds.minY || Math.min(road.y1, road.y2) > bounds.maxY) continue
-    const a = worldToScreen(camera, width, height, road.x1, road.y1)
-    const b = worldToScreen(camera, width, height, road.x2, road.y2)
-    ctx.moveTo(a.x, a.y)
-    ctx.lineTo(b.x, b.y)
+  ctx.save()
+  for (const [roadWidth, roads] of [...groups.entries()].sort((a, b) => a[0] - b[0])) {
+    ctx.beginPath()
+    for (const road of roads) {
+      const a = worldToScreen(camera, width, height, road.x1, road.y1)
+      const b = worldToScreen(camera, width, height, road.x2, road.y2)
+      ctx.moveTo(a.x, a.y)
+      ctx.lineTo(b.x, b.y)
+    }
+    ctx.strokeStyle =
+      roadWidth >= 22
+        ? 'rgba(141, 166, 168, 0.85)'
+        : roadWidth >= 17
+          ? 'rgba(110, 143, 148, 0.76)'
+          : roadWidth >= 10
+            ? 'rgba(77, 103, 110, 0.62)'
+            : 'rgba(55, 76, 84, 0.5)'
+    ctx.lineWidth = Math.max(0.55, roadWidth * 0.052)
+    ctx.stroke()
   }
-  ctx.strokeStyle = 'rgba(141, 166, 168, 0.82)'
-  ctx.lineWidth = 1.25
-  ctx.stroke()
 
   for (const highway of data.highways) {
     ctx.beginPath()
@@ -745,8 +742,8 @@ function drawLowZoomRoads(ctx, camera, width, height, data) {
       if (index === 0) ctx.moveTo(p.x, p.y)
       else ctx.lineTo(p.x, p.y)
     })
-    ctx.strokeStyle = 'rgba(255, 180, 84, 0.4)'
-    ctx.lineWidth = 1.4
+    ctx.strokeStyle = 'rgba(255, 180, 84, 0.5)'
+    ctx.lineWidth = 1.6
     ctx.stroke()
   }
   ctx.restore()
