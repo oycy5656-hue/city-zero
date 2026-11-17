@@ -1,4 +1,5 @@
 import {
+  AIRPORTS,
   CITY_AREAS,
   COMMUNITIES,
   DISTRICTS,
@@ -194,6 +195,7 @@ export function generateCity() {
     cityAreas: CITY_AREAS,
     water: [],
     parks: PARKS,
+    airports: AIRPORTS,
     districts: DISTRICTS,
     communities: COMMUNITIES,
     factions: FACTIONS,

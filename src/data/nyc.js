@@ -7,6 +7,7 @@ export const DISTRICT_BY_ID = Object.fromEntries(DISTRICTS.map((district) => [di
 export const COMMUNITIES = map.COMMUNITIES
 export const PARKS = map.PARKS
 export const POIS = map.POIS
+export const AIRPORTS = map.AIRPORTS
 export const ROADS = map.ROADS
 export const TOTAL_BUILDINGS = map.TOTAL_BUILDINGS
 export const BUILDINGS = []

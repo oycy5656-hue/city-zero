@@ -628,6 +628,55 @@ function drawStreetLabels(ctx, camera, width, height, data, scale) {
   ctx.restore()
 }
 
+function drawAirports(ctx, camera, width, height, data, scale) {
+  if (!data.airports) return
+  for (const airport of data.airports) {
+    const points = airport.runways.flatMap((line) => [
+      { x: line[0], y: line[1] },
+      { x: line[2], y: line[3] },
+    ])
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const p of points) {
+      minX = Math.min(minX, p.x)
+      minY = Math.min(minY, p.y)
+      maxX = Math.max(maxX, p.x)
+      maxY = Math.max(maxY, p.y)
+    }
+    const a = worldToScreen(camera, width, height, minX - 350, minY - 350)
+    const b = worldToScreen(camera, width, height, maxX + 350, maxY + 350)
+    ctx.save()
+    ctx.fillStyle = 'rgba(18, 31, 28, 0.5)'
+    ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y)
+    ctx.strokeStyle = 'rgba(138, 160, 146, 0.18)'
+    ctx.lineWidth = 1
+    ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y)
+    for (const line of airport.runways) {
+      const p1 = worldToScreen(camera, width, height, line[0], line[1])
+      const p2 = worldToScreen(camera, width, height, line[2], line[3])
+      ctx.beginPath()
+      ctx.moveTo(p1.x, p1.y)
+      ctx.lineTo(p2.x, p2.y)
+      ctx.strokeStyle = 'rgba(7, 12, 14, 0.95)'
+      ctx.lineWidth = Math.max(2, airport.width * scale + 3)
+      ctx.stroke()
+      ctx.strokeStyle = 'rgba(91, 105, 101, 0.95)'
+      ctx.lineWidth = Math.max(1.5, airport.width * scale)
+      ctx.stroke()
+      if (scale > 0.12) {
+        ctx.setLineDash([Math.max(2, 8 * scale), Math.max(3, 8 * scale)])
+        ctx.strokeStyle = 'rgba(225, 231, 218, 0.48)'
+        ctx.lineWidth = Math.max(0.6, 1.1 * scale)
+        ctx.stroke()
+        ctx.setLineDash([])
+      }
+    }
+    ctx.restore()
+  }
+}
+
 function drawRoads(ctx, camera, width, height, data, scale, fast = false) {
   const bounds = cameraBounds(camera, width, height)
   const groups = new Map()
@@ -1613,6 +1662,14 @@ function drawPoiIcon(ctx, x, y, type, color, size) {
     ctx.lineTo(size * 0.48, 0)
     ctx.lineTo(-size * 0.3, size * 0.4)
     ctx.closePath()
+  } else if (type === 'airport') {
+    ctx.moveTo(-size * 0.5, size * 0.12)
+    ctx.lineTo(size * 0.5, size * 0.12)
+    ctx.moveTo(0, -size * 0.56)
+    ctx.lineTo(0, size * 0.5)
+    ctx.moveTo(-size * 0.28, -size * 0.05)
+    ctx.lineTo(0, -size * 0.28)
+    ctx.lineTo(size * 0.28, -size * 0.05)
   } else if (type === 'industry' || type === 'solar') {
     ctx.moveTo(-size * 0.4, size * 0.32)
     ctx.lineTo(-size * 0.16, -size * 0.45)
@@ -1687,7 +1744,8 @@ function drawPois(ctx, camera, width, height, data, scale, selectedPoiId) {
       ctx.stroke()
     }
     drawPoiIcon(ctx, p.x, p.y, poi.type, color, size)
-    if (scale > 0.16 || selected) {
+    const major = poi.type === 'airport' || ['empire-state','one-world','central-park','brooklyn-bridge','liberty','yankee-stadium','flushing-meadows','coney-island'].includes(poi.id)
+    if (scale > 0.16 || selected || major) {
       ctx.font = `500 ${selected ? 12 : 10}px "Noto Sans SC", "Microsoft YaHei", sans-serif`
       ctx.textAlign = 'left'
       ctx.fillStyle = selected ? '#f1f7f7' : 'rgba(211, 228, 232, 0.76)'
@@ -1772,6 +1830,7 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
   drawRivers(ctx, camera, width, height, data)
   drawCommunities(ctx, camera, width, height, data, scale, options.fast)
   drawParks(ctx, camera, width, height, data, options.fast)
+  drawAirports(ctx, camera, width, height, data, scale)
 
   const hasBlocks = data.blocks && data.blocks.length > 0
   const visibleBuildings = hasBlocks || !data.buildings.length ? null : getVisibleBuildings(data, cameraBounds(camera, width, height))
