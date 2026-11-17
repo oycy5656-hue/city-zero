@@ -20,21 +20,16 @@ for(const f of landFeats){const boro=f.properties.BoroName;const rings=outerRing
 const all=areas.flatMap(a=>a.poly);const box=all.reduce((o,[a,b])=>({minX:Math.min(o.minX,a),maxX:Math.max(o.maxX,a),minY:Math.min(o.minY,b),maxY:Math.max(o.maxY,b)}),{minX:1e9,maxX:-1e9,minY:1e9,maxY:-1e9});const margin=900
 const WORLD={minX:Math.floor(box.minX-margin),minY:Math.floor(box.minY-margin),maxX:Math.ceil(box.maxX+margin),maxY:Math.ceil(box.maxY+margin)};WORLD.width=WORLD.maxX-WORLD.minX;WORLD.height=WORLD.maxY-WORLD.minY;WORLD.areaKm2=+(areas.reduce((s,a)=>s+area(a.poly),0)/1e6).toFixed(2)
 WORLD.lon0=LON0;WORLD.lat0=LAT0;WORLD.mx=MX;WORLD.my=MY
-const ySplit=y(40.710)
-const mana=mains['Manhattan'];const rectN={minX:WORLD.minX,minY:WORLD.minY,maxX:WORLD.maxX,maxY:ySplit};const rectS={minX:WORLD.minX,minY:ySplit,maxX:WORLD.maxX,maxY:WORLD.maxY}
-const polyCore=clipPoly(mana,rectN).map(([a,b])=>[+a.toFixed(1),+b.toFixed(1)]);const polyHarbor=clipPoly(mana,rectS).map(([a,b])=>[+a.toFixed(1),+b.toFixed(1)])
-const baseDistricts=[
- {id:'core',name:'中枢',en:'THE CORE',color:'#53e0d0',poly:polyCore,realName:'曼哈顿 / 中城'},
- {id:'harbor',name:'旧港',en:'OLD HARBOR',color:'#58b6ff',poly:polyHarbor,realName:'曼哈顿 / 下城'},
- {id:'strip',name:'霓虹巷',en:'NEON STRIP',color:'#ff4fa3',poly:mains['Brooklyn'],realName:'布鲁克林'},
- {id:'outlands',name:'外野',en:'THE OUTLANDS',color:'#b18cff',poly:mains['Queens'],realName:'皇后区'},
- {id:'rust',name:'锈带',en:'RUST BELT',color:'#ff9f5a',poly:mains['Bronx'],realName:'布朗克斯'},
- {id:'ring',name:'环城',en:'THE RING',color:'#ffd36a',poly:mains['Staten Island'],realName:'斯塔滕岛'},
+const districtDefs=[
+ {id:'manhattan',name:'曼哈顿',en:'MANHATTAN',color:'#53e0d0',poly:mains['Manhattan'],population:1620000,economy:96,security:82,unrest:15,control:68,threat:22,tax:20,faction:'helios',type:'五区核心',description:'纽约的金融、媒体与权力中心。摩天楼、旧公寓和全球资本在这里叠在同一张街道网上。',detail:'从华尔街到中央公园，曼哈顿的街道名和建筑轮廓都来自 NYC Open Data。'},
+ {id:'brooklyn',name:'布鲁克林',en:'BROOKLYN',color:'#ff4fa3',poly:mains['Brooklyn'],population:2600000,economy:74,security:58,unrest:24,control:52,threat:32,tax:16,faction:'nightingale',type:'文化 / 居住区',description:'纽约人口最多的区。褐石住宅、滨水仓库、创意产业和密集的社区网络并存。',detail:'从布鲁克林大桥到展望公园，真实街区沿着东河展开。'},
+ {id:'queens',name:'皇后区',en:'QUEENS',color:'#b18cff',poly:mains['Queens'],population:2400000,economy:68,security:55,unrest:26,control:48,threat:30,tax:15,faction:'nomads',type:'多元居住区',description:'纽约面积最大、语言最多的区。机场、铁路、住宅和工业带拼成复杂的城市肌理。',detail:'法拉盛、牙买加湾和肯尼迪机场构成皇后区的真实边界。'},
+ {id:'bronx',name:'布朗克斯',en:'THE BRONX',color:'#ff9f5a',poly:mains['Bronx'],population:1470000,economy:52,security:42,unrest:34,control:38,threat:42,tax:12,faction:'iron',type:'工业 / 居住区',description:'纽约大陆上的北区。铁路、仓库、洋基体育场和大片工人住宅沿着哈莱姆河分布。',detail:'南布朗克斯的工业带与社区街区来自真实 NYC 建筑轮廓。'},
+ {id:'staten-island',name:'斯塔滕岛',en:'STATEN ISLAND',color:'#ffd36a',poly:mains['Staten Island'],population:500000,economy:48,security:62,unrest:18,control:44,threat:20,tax:14,faction:'tide',type:'岛屿 / 港区',description:'纽约最南端的岛区。渡轮、港口、低密度住宅和林地构成与曼哈顿完全不同的城市节奏。',detail:'斯塔滕岛渡轮与 Snug Harbor 是岛区的真实地标。'},
 ]
-const meta=JSON.parse(fs.readFileSync('src/data/nyc-district-meta.json','utf8').replace(/^\uFEFF/,''))
-const pops={core:1050000,harbor:550000,strip:2600000,outlands:2400000,rust:1470000,ring:500000}
-const districts=baseDistricts.map(d=>{const c=centroid(d.poly);return{...d,...(meta[d.id]||{}),population:pops[d.id],centroid:[+c[0].toFixed(0),+c[1].toFixed(0)]}})
-function districtAt(px,py){return districts.find(d=>inRing(px,py,d.poly))?.id||'core'}
+const centers={manhattan:[-422,-5527],brooklyn:[2532,6080],queens:[12658,-1658],bronx:[8439,-14923],'staten-island':[-14346,13818]}
+const districts=districtDefs.map(d=>({...d,realName:d.name,centroid:centers[d.id]}))
+function districtAt(px,py){return districts.find(d=>inRing(px,py,d.poly))?.id||'manhattan'}
 // NTA communities
 const communities=[]
 for(const f of raw('nta.geojson').features){const p=f.properties;const rings=outerRings(f.geometry).map(r=>{let rr=r.map(proj);if(rr.length>1&&Math.hypot(rr[0][0]-rr[rr.length-1][0],rr[0][1]-rr[rr.length-1][1])<0.01)rr.pop();return rdp(rr,1.4)}).filter(r=>r.length>3&&area(r)>10000);if(!rings.length)continue;rings.sort((a,b)=>area(b)-area(a));const ring=rings[0];const c=centroid(ring);communities.push({id:'nta-'+p.OBJECTID,name:p.NTAName||p.NTACode,code:p.NTACode,boro:p.BoroName,poly:ring.map(([a,b])=>[+a.toFixed(0),+b.toFixed(0)]),centroid:[+c[0].toFixed(0),+c[1].toFixed(0)],area:+area(ring).toFixed(0)})}

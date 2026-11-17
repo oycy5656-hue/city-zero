@@ -9,14 +9,14 @@ import { CITY, DISTRICTS, INCIDENTS, SQUADS, TACTICS, WORLD } from './data/city.
 
 const initialDistricts = DISTRICTS.map((district, index) => ({
   ...district,
-  infra: [72, 48, 55, 39, 44, 28][index],
+  infra: [78, 54, 48, 36, 42][index] ?? 50,
 }))
 
 const initialLog = [
-  { id: 1, time: '23:47', district: 'core', text: '赫利俄斯塔进入夜间警戒。', tone: 'info' },
-  { id: 2, time: '23:31', district: 'harbor', text: '第三号泊位报告不明货柜。', tone: 'warn' },
-  { id: 3, time: '22:58', district: 'ring', text: '第七街区供水压力下降 14%。', tone: 'danger' },
-  { id: 4, time: '22:12', district: 'strip', text: '夜莺塔直播流量突破八百万。', tone: 'info' },
+  { id: 1, time: '23:47', district: 'manhattan', text: '帝国大厦进入夜间警戒。', tone: 'info' },
+  { id: 2, time: '23:31', district: 'brooklyn', text: '布鲁克林码头报告不明货柜。', tone: 'warn' },
+  { id: 3, time: '22:58', district: 'bronx', text: '南布朗克斯供水压力下降 14%。', tone: 'danger' },
+  { id: 4, time: '22:12', district: 'queens', text: '肯尼迪机场雷达再次离线。', tone: 'info' },
 ]
 
 function formatTime(city) {
@@ -30,7 +30,7 @@ export default function App() {
   const [panel, setPanel] = useState('map')
   const [city, setCity] = useState(CITY)
   const [districts, setDistricts] = useState(initialDistricts)
-  const [selectedDistrict, setSelectedDistrict] = useState('core')
+  const [selectedDistrict, setSelectedDistrict] = useState('manhattan')
   const [selectedPoi, setSelectedPoi] = useState(null)
   const [focusRequest, setFocusRequest] = useState(null)
   const [speed, setSpeed] = useState(1)
@@ -405,7 +405,7 @@ export default function App() {
             <div className="boot-screen__bar"><i /></div>
             <div className="boot-screen__meta">
               <span>GRID {Math.round(WORLD.width / 100) / 10} × {Math.round(WORLD.height / 100) / 10} KM</span>
-              <span>SECTOR LINK 06</span>
+              <span>SECTOR LINK 05</span>
               <span>AUTHORITY 7A</span>
             </div>
           </div>
