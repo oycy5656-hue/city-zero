@@ -62,6 +62,37 @@ const MapCanvas = forwardRef(function MapCanvas(
   const hoverRef = useRef(null)
   const hoveredIdRef = useRef(null)
   const lastHudRef = useRef(0)
+  const lastPaintRef = useRef(0)
+  const interactingRef = useRef(false)
+  const interactionTimerRef = useRef(0)
+  const lastMoveRef = useRef(0)
+  const cacheCanvasRef = useRef(null)
+  const cacheCameraRef = useRef(null)
+  const cacheReadyRef = useRef(false)
+
+  const captureFrame = useCallback(() => {
+    const canvas = canvasRef.current
+    const camera = cameraRef.current
+    if (!canvas || !camera) return
+    if (!cacheCanvasRef.current) cacheCanvasRef.current = document.createElement('canvas')
+    const cache = cacheCanvasRef.current
+    cache.width = canvas.width
+    cache.height = canvas.height
+    const cacheCtx = cache.getContext('2d')
+    cacheCtx.setTransform(1, 0, 0, 1, 0, 0)
+    cacheCtx.drawImage(canvas, 0, 0)
+    cacheCameraRef.current = { ...camera }
+    cacheReadyRef.current = true
+  }, [])
+
+  const markInteracting = useCallback(() => {
+    interactingRef.current = true
+    lastMoveRef.current = performance.now()
+    window.clearTimeout(interactionTimerRef.current)
+    interactionTimerRef.current = window.setTimeout(() => {
+      interactingRef.current = false
+    }, 220)
+  }, [])
   const streamRef = useRef({
     tiles: new Map(),
     loading: new Set(),
@@ -170,7 +201,7 @@ const MapCanvas = forwardRef(function MapCanvas(
     if (!wrap || !canvas || !mini) return
     const resize = () => {
       const rect = wrap.getBoundingClientRect()
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
       const width = Math.max(1, rect.width)
       const height = Math.max(1, rect.height)
       sizeRef.current = { width, height, dpr }
@@ -229,6 +260,7 @@ const MapCanvas = forwardRef(function MapCanvas(
     let stopped = false
     const controller = new AbortController()
     streamAbortRef.current = controller
+    let rebuildTimer = 0
 
     const rebuild = () => {
       const buildings = []
@@ -248,10 +280,15 @@ const MapCanvas = forwardRef(function MapCanvas(
       }
     }
 
+    const scheduleRebuild = () => {
+      window.clearTimeout(rebuildTimer)
+      rebuildTimer = window.setTimeout(rebuild, 90)
+    }
+
     const loadVisible = async () => {
       const camera = cameraRef.current
       const { width, height } = sizeRef.current
-      if (!camera || width < 1) return
+      if (!camera || width < 1 || interactingRef.current || performance.now() - lastMoveRef.current < 700) return
       const bounds = cameraBounds(camera, width, height)
       if (camera.scale >= 0.3) {
         const minTx = Math.floor((bounds.minX - 200 - WORLD.minX) / TILE_SIZE)
@@ -279,7 +316,7 @@ const MapCanvas = forwardRef(function MapCanvas(
                 const first = streamRef.current.tiles.keys().next().value
                 streamRef.current.tiles.delete(first)
               }
-              rebuild()
+              scheduleRebuild()
             })
             .catch(() => {})
             .finally(() => streamRef.current.loading.delete(candidate.key))
@@ -312,7 +349,7 @@ const MapCanvas = forwardRef(function MapCanvas(
                 const first = streamRef.current.roadTiles.keys().next().value
                 streamRef.current.roadTiles.delete(first)
               }
-              rebuild()
+              scheduleRebuild()
             })
             .catch(() => {})
             .finally(() => streamRef.current.roadLoading.delete(candidate.key))
@@ -325,6 +362,7 @@ const MapCanvas = forwardRef(function MapCanvas(
     return () => {
       stopped = true
       window.clearInterval(timer)
+      window.clearTimeout(rebuildTimer)
       controller.abort()
     }
   }, [data])
@@ -359,6 +397,37 @@ const MapCanvas = forwardRef(function MapCanvas(
           }
         }
 
+        if (
+          interactingRef.current &&
+          cacheReadyRef.current &&
+          cacheCameraRef.current &&
+          cacheCanvasRef.current
+        ) {
+          const cache = cacheCanvasRef.current
+          const base = cacheCameraRef.current
+          const ratio = cameraRef.current.scale / base.scale
+          const dx =
+            width / 2 +
+            (base.x - cameraRef.current.x) * cameraRef.current.scale -
+            (width / 2) * ratio
+          const dy =
+            height / 2 +
+            (base.y - cameraRef.current.y) * cameraRef.current.scale -
+            (height / 2) * ratio
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+          ctx.fillStyle = '#05080b'
+          ctx.fillRect(0, 0, width, height)
+          ctx.drawImage(cache, 0, 0, cache.width, cache.height, dx, dy, width * ratio, height * ratio)
+          raf = requestAnimationFrame(frame)
+          return
+        }
+
+        if (time - lastPaintRef.current < 32) {
+          raf = requestAnimationFrame(frame)
+          return
+        }
+        lastPaintRef.current = time
+
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
         drawMap(ctx, renderDataRef.current, cameraRef.current, width, height, {
           selectedDistrict,
@@ -370,13 +439,14 @@ const MapCanvas = forwardRef(function MapCanvas(
           districts: layers.districts,
           pois: layers.pois,
           traffic: layers.traffic,
+          fast: interactingRef.current,
           scaleRight: width < 900 ? 20 : 366,
         })
 
         miniCtx.setTransform(dpr, 0, 0, dpr, 0, 0)
         drawMinimap(miniCtx, renderDataRef.current, cameraRef.current, 230, 160, width, height)
 
-        if (time - lastHudRef.current > 120) {
+        if (time - lastHudRef.current > 250) {
           lastHudRef.current = time
           setHud({
             x: cameraRef.current.x,
@@ -457,7 +527,9 @@ const MapCanvas = forwardRef(function MapCanvas(
   const onPointerDown = (event) => {
     const canvas = canvasRef.current
     if (!canvas) return
+    if (!interactingRef.current) captureFrame()
     const rect = canvas.getBoundingClientRect()
+    markInteracting()
     const point = { x: event.clientX - rect.left, y: event.clientY - rect.top }
     pointersRef.current.set(event.pointerId, point)
     canvas.setPointerCapture(event.pointerId)
@@ -487,6 +559,7 @@ const MapCanvas = forwardRef(function MapCanvas(
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
+    if (pointersRef.current.size > 0) markInteracting()
     const point = { x: event.clientX - rect.left, y: event.clientY - rect.top }
     const { width, height } = sizeRef.current
 
@@ -578,6 +651,8 @@ const MapCanvas = forwardRef(function MapCanvas(
     if (!canvas) return
     const onWheel = (event) => {
       event.preventDefault()
+      if (!interactingRef.current) captureFrame()
+      markInteracting()
       if (!cameraRef.current) return
       const rect = canvas.getBoundingClientRect()
       const sx = event.clientX - rect.left
@@ -607,6 +682,7 @@ const MapCanvas = forwardRef(function MapCanvas(
 
   const onDoubleClick = (event) => {
     if (!cameraRef.current) return
+    if (!interactingRef.current) captureFrame()
     const canvas = canvasRef.current
     const rect = canvas.getBoundingClientRect()
     const { width, height } = sizeRef.current

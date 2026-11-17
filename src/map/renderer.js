@@ -293,8 +293,8 @@ function drawRivers(ctx, camera, width, height, data) {
   }
 }
 
-function drawCommunities(ctx, camera, width, height, data, scale) {
-  if (scale < 0.09 || !data.communities) return
+function drawCommunities(ctx, camera, width, height, data, scale, fast = false) {
+  if (fast || scale < 0.09 || !data.communities) return
   ctx.save()
   for (const community of data.communities) {
     ctx.beginPath()
@@ -304,7 +304,7 @@ function drawCommunities(ctx, camera, width, height, data, scale) {
     ctx.stroke()
   }
   ctx.setLineDash([])
-  if (scale > 0.28) {
+  if (scale > 0.55) {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     let drawn = 0
@@ -324,9 +324,11 @@ function drawCommunities(ctx, camera, width, height, data, scale) {
   ctx.restore()
 }
 
-function drawParks(ctx, camera, width, height, data) {
+function drawParks(ctx, camera, width, height, data, fast = false) {
   const scale = camera.scale
   for (const park of data.parks) {
+    if (fast && (park.area || 0) < 50000) continue
+    if (scale < 0.5 && (park.area || 0) < 12000) continue
     ctx.save()
     ctx.beginPath()
     tracePolygon(ctx, camera, width, height, park.poly)
@@ -553,10 +555,11 @@ function drawStreetLabels(ctx, camera, width, height, data, scale) {
   ctx.restore()
 }
 
-function drawRoads(ctx, camera, width, height, data, scale) {
+function drawRoads(ctx, camera, width, height, data, scale, fast = false) {
   const bounds = cameraBounds(camera, width, height)
   const groups = new Map()
   for (const road of data.roads) {
+    if (fast && !road.static) continue
     if (scale < 0.16 && road.width < 10) continue
     if (Math.max(road.x1, road.x2) < bounds.minX || Math.min(road.x1, road.x2) > bounds.maxX) continue
     if (Math.max(road.y1, road.y2) < bounds.minY || Math.min(road.y1, road.y2) > bounds.maxY) continue
@@ -575,7 +578,7 @@ function drawRoads(ctx, camera, width, height, data, scale) {
       ctx.lineTo(b.x, b.y)
     }
     ctx.strokeStyle = 'rgba(7, 12, 14, 0.95)'
-    ctx.lineWidth = Math.max(1.8, roadWidth * scale + 2)
+    ctx.lineWidth = Math.max(1.5, roadWidth * scale * 0.82 + 1.5)
     ctx.stroke()
     ctx.strokeStyle =
       roadWidth >= 22
@@ -585,7 +588,7 @@ function drawRoads(ctx, camera, width, height, data, scale) {
           : roadWidth >= 10
             ? 'rgba(100, 122, 127, 0.94)'
             : 'rgba(83, 105, 110, 0.92)'
-    ctx.lineWidth = Math.max(1.25, roadWidth * scale)
+    ctx.lineWidth = Math.max(0.9, roadWidth * scale * 0.82)
     ctx.stroke()
     ctx.restore()
   }
@@ -995,18 +998,18 @@ function drawLowZoomRoads(ctx, camera, width, height, data) {
   ctx.restore()
 }
 
-function drawBuildings(ctx, camera, width, height, data, scale, hoveredId, pass = 'both') {
+function drawBuildings(ctx, camera, width, height, data, scale, hoveredId, pass = 'both', precomputed = null, fast = false) {
   const bounds = cameraBounds(camera, width, height)
-  const buildings = getVisibleBuildings(data, bounds)
+  const buildings = precomputed || getVisibleBuildings(data, bounds)
   const detailed = scale > 0.34
   const extruded = scale > 0.46
   const veryDetailed = scale > 1.05
-  const ordered = extruded ? [...buildings].sort((a, b) => a.height - b.height) : buildings
+  const ordered = buildings
   const districtColors = new Map(data.districts.map((district) => [district.id, district.color]))
 
   // Ground shadows. Keeping these in a separate pass makes the city read as a
   // collection of volumes instead of a flat colour field.
-  if (detailed && pass !== 'body') {
+  if (detailed && pass !== 'body' && scale > 0.55) {
     ctx.save()
     for (const b of buildings) {
       if (b.height < 10) continue
@@ -1065,6 +1068,22 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId, pass 
     const accent = districtColors.get(b.district) || '#53e0d0'
 
     if (b.points) {
+      if (pass === 'shadows' || scale < 0.55 || (fast && scale < 0.75)) {
+        const [minX, minY, maxX, maxY] = b.bbox
+        const a = worldToScreen(camera, width, height, minX, minY)
+        const c = worldToScreen(camera, width, height, maxX, maxY)
+        const rw = c.x - a.x
+        const rh = c.y - a.y
+        if (rw < 0.5 && rh < 0.5) continue
+        ctx.fillStyle = baseColor
+        ctx.fillRect(a.x, a.y, rw, rh)
+        if (hoveredId === b.id) {
+          ctx.strokeStyle = '#ffd36a'
+          ctx.lineWidth = 1.5
+          ctx.strokeRect(a.x, a.y, rw, rh)
+        }
+        continue
+      }
       const screen = b.points.map(([x, y]) => worldToScreen(camera, width, height, x, y))
       let minX = Infinity
       let minY = Infinity
@@ -1663,7 +1682,7 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
   ctx.fillRect(0, 0, width, height)
 
   drawLand(ctx, camera, width, height, data)
-  if (options.grid !== false) {
+  if (options.grid !== false && scale > 0.5) {
     for (const district of data.districts) {
       ctx.save()
       ctx.beginPath()
@@ -1676,19 +1695,25 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
   drawCityGlow(ctx, camera, width, height, data)
   if (options.districts !== false) drawDistricts(ctx, camera, width, height, data, options.selectedDistrict)
   drawRivers(ctx, camera, width, height, data)
-  drawCommunities(ctx, camera, width, height, data, scale)
-  drawParks(ctx, camera, width, height, data)
+  drawCommunities(ctx, camera, width, height, data, scale, options.fast)
+  drawParks(ctx, camera, width, height, data, options.fast)
 
   const hasBlocks = data.blocks && data.blocks.length > 0
+  const visibleBuildings = hasBlocks || !data.buildings.length ? null : getVisibleBuildings(data, cameraBounds(camera, width, height))
   if (scale < 0.27 && hasBlocks) {
     drawBlocks(ctx, camera, width, height, data)
     drawLowZoomRoads(ctx, camera, width, height, data)
     if (options.districts !== false) drawDistrictOutlines(ctx, camera, width, height, data, options.selectedDistrict)
   } else {
     if (hasBlocks) drawBlockGround(ctx, camera, width, height, data)
-    drawBuildings(ctx, camera, width, height, data, scale, options.hoveredBuilding, 'shadows')
-    drawRoads(ctx, camera, width, height, data, scale)
-    drawBuildings(ctx, camera, width, height, data, scale, options.hoveredBuilding, 'body')
+    if (scale < 0.55) {
+      drawBuildings(ctx, camera, width, height, data, scale, options.hoveredBuilding, 'body', visibleBuildings, options.fast)
+      drawRoads(ctx, camera, width, height, data, scale, options.fast)
+    } else {
+      drawBuildings(ctx, camera, width, height, data, scale, options.hoveredBuilding, 'shadows', visibleBuildings, options.fast)
+      drawRoads(ctx, camera, width, height, data, scale, options.fast)
+      drawBuildings(ctx, camera, width, height, data, scale, options.hoveredBuilding, 'body', visibleBuildings, options.fast)
+    }
     if (!hasBlocks && scale < 0.27 && options.districts !== false) {
       drawDistrictOutlines(ctx, camera, width, height, data, options.selectedDistrict)
     }

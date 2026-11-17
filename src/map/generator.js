@@ -108,10 +108,20 @@ export function normalizeStreamBuilding(feature, id) {
         ? geom.coordinates[0][0]
         : null
   if (!ring || ring.length < 3) return null
-  const points = ring.map(([lon, lat]) => [
+  const rawPoints = ring.map(([lon, lat]) => [
     (lon - WORLD.lon0) * WORLD.mx,
     -(lat - WORLD.lat0) * WORLD.my,
   ])
+  const simplified = [rawPoints[0]]
+  for (let i = 1; i < rawPoints.length; i += 1) {
+    const [x, y] = rawPoints[i]
+    const [lx, ly] = simplified[simplified.length - 1]
+    if (Math.hypot(x - lx, y - ly) >= 2) simplified.push([x, y])
+  }
+  const lastPoint = rawPoints[rawPoints.length - 1]
+  const [fx, fy] = simplified[simplified.length - 1]
+  if (Math.hypot(lastPoint[0] - fx, lastPoint[1] - fy) > 0.5) simplified.push(lastPoint)
+  const points = simplified.length >= 3 ? simplified : rawPoints
   const bbox = bboxOf(points)
   const area = Math.abs(
     points.reduce((sum, [x, y], index) => {
@@ -152,7 +162,7 @@ export function normalizeStreamBuilding(feature, id) {
 }
 
 export function generateCity() {
-  const roads = expandRoads(ROADS)
+  const roads = expandRoads(ROADS).map((road) => ({ ...road, static: true }))
   const trafficRoutes = []
   for (const road of ROADS) {
     if ((road.width || 0) < 16 || !road.points || road.points.length < 2) continue
