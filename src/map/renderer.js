@@ -436,6 +436,11 @@ function drawCityGlow(ctx, camera, width, height, data) {
 
 function drawDistricts(ctx, camera, width, height, data, selectedId) {
   ctx.save()
+  if (data.cityFootprint) {
+    ctx.beginPath()
+    tracePolygon(ctx, camera, width, height, data.cityFootprint)
+    ctx.clip()
+  }
   for (const district of data.districts) {
     const selected = district.id === selectedId
     ctx.beginPath()
@@ -465,7 +470,47 @@ function drawDistrictLabels(ctx, camera, width, height, data, selectedId) {
     ctx.fillText(district.name.split('').join(' '), p.x, p.y)
     ctx.font = '9px "Cascadia Mono", Consolas, monospace'
     ctx.fillStyle = rgba(district.color, selected ? 0.62 : 0.3)
-    ctx.fillText(district.en, p.x, p.y + 16)
+    ctx.fillText(district.realName ? `${district.realName} / ${district.en}` : district.en, p.x, p.y + 16)
+  }
+  ctx.restore()
+}
+
+function drawStreetLabels(ctx, camera, width, height, data, scale) {
+  if (scale < 1.0) return
+  const seen = new Set()
+  const labels = []
+  for (const road of data.roads) {
+    if (!road.name || road.width < 11) continue
+    if (seen.has(road.name)) continue
+    const a = worldToScreen(camera, width, height, road.x1, road.y1)
+    const b = worldToScreen(camera, width, height, road.x2, road.y2)
+    if (Math.max(a.x, b.x) < 0 || Math.min(a.x, b.x) > width) continue
+    if (Math.max(a.y, b.y) < 0 || Math.min(a.y, b.y) > height) continue
+    const mx = (a.x + b.x) / 2
+    const my = (a.y + b.y) / 2
+    let angle = Math.atan2(b.y - a.y, b.x - a.x)
+    if (angle > Math.PI / 2) angle -= Math.PI
+    if (angle < -Math.PI / 2) angle += Math.PI
+    seen.add(road.name)
+    labels.push({ name: road.name, mx, my, angle, width: road.width })
+  }
+  labels.sort((a, b) => b.width - a.width)
+  ctx.save()
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  for (const label of labels.slice(0, 20)) {
+    if (Math.hypot(label.mx - width / 2, label.my - height / 2) > Math.max(width, height) * 0.62) continue
+    ctx.save()
+    ctx.translate(label.mx, label.my)
+    ctx.rotate(label.angle)
+    ctx.font = `${label.width > 17 ? 10 : 9}px "Cascadia Mono", Consolas, monospace`
+    const text = label.name.toUpperCase()
+    ctx.lineWidth = 3
+    ctx.strokeStyle = 'rgba(3, 8, 10, 0.9)'
+    ctx.strokeText(text, 0, 0)
+    ctx.fillStyle = label.width > 17 ? 'rgba(226, 231, 222, 0.72)' : 'rgba(190, 204, 201, 0.52)'
+    ctx.fillText(text, 0, 0)
+    ctx.restore()
   }
   ctx.restore()
 }
@@ -857,6 +902,11 @@ function drawInterchanges(ctx, camera, width, height, data, scale) {
 
 function drawDistrictOutlines(ctx, camera, width, height, data, selectedId) {
   ctx.save()
+  if (data.cityFootprint) {
+    ctx.beginPath()
+    tracePolygon(ctx, camera, width, height, data.cityFootprint)
+    ctx.clip()
+  }
   for (const district of data.districts) {
     ctx.beginPath()
     tracePolygon(ctx, camera, width, height, district.poly)
@@ -931,6 +981,20 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId) {
     for (const b of buildings) {
       if (b.height < 10) continue
       const p = worldToScreen(camera, width, height, b.x, b.y)
+      if (b.points) {
+        const offset = Math.min(10, b.height * scale * 0.12)
+        if (offset < 0.5) continue
+        ctx.beginPath()
+        b.points.forEach(([x, y], index) => {
+          const s = worldToScreen(camera, width, height, x, y)
+          if (index === 0) ctx.moveTo(s.x + offset, s.y + offset * 0.8)
+          else ctx.lineTo(s.x + offset, s.y + offset * 0.8)
+        })
+        ctx.closePath()
+        ctx.fillStyle = `rgba(0, 0, 0, ${b.height > 100 ? 0.22 : 0.13})`
+        ctx.fill()
+        continue
+      }
       const w = b.w * scale
       const h = b.h * scale
       if (w < 1.4 || h < 1.4) continue
@@ -959,9 +1023,6 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId) {
   ctx.save()
   for (const b of ordered) {
     const p = worldToScreen(camera, width, height, b.x, b.y)
-    const w = b.w * scale
-    const h = b.h * scale
-    if (w < 0.7 || h < 0.7) continue
     const toneShift = (b.tone - 0.5) * 0.26
     let baseColor = shade(buildingColor(b.district, b.height, b.type), toneShift)
     if (b.type === 'container') {
@@ -970,6 +1031,94 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId) {
       baseColor = mixColor(baseColor, STYLE_TINTS[b.style], 0.42)
     }
     const accent = districtColors.get(b.district) || '#53e0d0'
+
+    if (b.points) {
+      const screen = b.points.map(([x, y]) => worldToScreen(camera, width, height, x, y))
+      let minX = Infinity
+      let minY = Infinity
+      let maxX = -Infinity
+      let maxY = -Infinity
+      for (const s of screen) {
+        if (s.x < minX) minX = s.x
+        if (s.y < minY) minY = s.y
+        if (s.x > maxX) maxX = s.x
+        if (s.y > maxY) maxY = s.y
+      }
+      const sw = maxX - minX
+      const sh = maxY - minY
+      if (sw < 0.5 && sh < 0.5) continue
+      const heightPx = Math.min(30, Math.max(0.8, b.height * scale * 0.16))
+      const roof = screen.map((s) => [s.x + heightPx * 0.36, s.y - heightPx])
+
+      if (scale > 0.34 && heightPx > 0.8) {
+        // Side walls: one quad per footprint edge.
+        for (let i = 0; i < screen.length; i += 1) {
+          const a = screen[i]
+          const c = screen[(i + 1) % screen.length]
+          const ra = roof[i]
+          const rc = roof[(i + 1) % roof.length]
+          ctx.beginPath()
+          ctx.moveTo(a.x, a.y)
+          ctx.lineTo(c.x, c.y)
+          ctx.lineTo(rc[0], rc[1])
+          ctx.lineTo(ra[0], ra[1])
+          ctx.closePath()
+          ctx.fillStyle = shade(baseColor, i % 2 === 0 ? -0.48 : -0.34)
+          ctx.fill()
+        }
+        ctx.beginPath()
+        roof.forEach(([x, y], index) => {
+          if (index === 0) ctx.moveTo(x, y)
+          else ctx.lineTo(x, y)
+        })
+        ctx.closePath()
+        ctx.fillStyle = shade(baseColor, 0.12)
+        ctx.fill()
+        ctx.strokeStyle = rgba(accent, 0.18)
+        ctx.lineWidth = 0.55
+        ctx.stroke()
+
+        if (veryDetailed && b.height > 45 && sh > 7) {
+          const cx = (minX + maxX) / 2
+          const cy = (minY + maxY) / 2
+          ctx.fillStyle = 'rgba(7, 17, 20, 0.45)'
+          ctx.fillRect(cx - sw * 0.16, cy - sh * 0.08, sw * 0.14, sh * 0.1)
+          ctx.fillStyle = 'rgba(255, 208, 110, 0.4)'
+          ctx.fillRect(cx + sw * 0.1, cy + sh * 0.04, 1.2, 1.2)
+        }
+      } else {
+        ctx.beginPath()
+        screen.forEach((s, index) => {
+          if (index === 0) ctx.moveTo(s.x, s.y)
+          else ctx.lineTo(s.x, s.y)
+        })
+        ctx.closePath()
+        ctx.fillStyle = baseColor
+        ctx.fill()
+        if (scale > 0.14) {
+          ctx.strokeStyle = rgba(accent, 0.22)
+          ctx.lineWidth = 0.45
+          ctx.stroke()
+        }
+      }
+
+      if (hoveredId === b.id) {
+        ctx.beginPath()
+        screen.forEach((s, index) => {
+          if (index === 0) ctx.moveTo(s.x, s.y)
+          else ctx.lineTo(s.x, s.y)
+        })
+        ctx.closePath()
+        ctx.strokeStyle = '#ffd36a'
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+      }
+      continue
+    }
+
+    const w = b.w * scale
+    const h = b.h * scale
+    if (w < 0.7 || h < 0.7) continue
 
     if (b.shape === 'cross' || b.shape === 'L' || b.shape === 'U') {
       const offset = Math.min(12, b.height * scale * 0.12)
@@ -1496,19 +1645,24 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
   drawParks(ctx, camera, width, height, data)
   drawRoads(ctx, camera, width, height, data, scale)
 
-  if (scale < 0.27) {
+  const hasBlocks = data.blocks && data.blocks.length > 0
+  if (scale < 0.27 && hasBlocks) {
     drawBlocks(ctx, camera, width, height, data)
     drawLowZoomRoads(ctx, camera, width, height, data)
     if (options.districts !== false) drawDistrictOutlines(ctx, camera, width, height, data, options.selectedDistrict)
   } else {
-    drawBlockGround(ctx, camera, width, height, data)
+    if (hasBlocks) drawBlockGround(ctx, camera, width, height, data)
     drawBuildings(ctx, camera, width, height, data, scale, options.hoveredBuilding)
+    if (!hasBlocks && scale < 0.27 && options.districts !== false) {
+      drawDistrictOutlines(ctx, camera, width, height, data, options.selectedDistrict)
+    }
   }
 
   drawRamps(ctx, camera, width, height, data, scale)
   drawExpressways(ctx, camera, width, height, data, scale)
   drawBridges(ctx, camera, width, height, data, scale)
   drawInterchanges(ctx, camera, width, height, data, scale)
+  drawStreetLabels(ctx, camera, width, height, data, scale)
   if (options.traffic !== false) drawTraffic(ctx, camera, width, height, data, scale, time)
   drawStreetLights(ctx, camera, width, height, data, scale)
   drawLandmarks(ctx, camera, width, height, data, scale)

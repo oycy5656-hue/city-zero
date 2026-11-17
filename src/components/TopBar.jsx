@@ -44,10 +44,10 @@ export default function TopBar({
   return (
     <header className="topbar">
       <div className="topbar__brand">
-        <span className="topbar__mark">CZ</span>
+        <span className="topbar__mark">NY</span>
         <div>
-          <strong>零号城</strong>
-          <small>CITY ZERO / 2088</small>
+          <strong>曼哈顿</strong>
+          <small>MANHATTAN / NYC</small>
         </div>
       </div>
 

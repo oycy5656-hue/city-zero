@@ -17,7 +17,7 @@ export default function DistrictRail({
     <aside className="district-rail">
       <div className="rail-header">
         <p className="hud-label">CITY COORDINATOR / 01</p>
-        <h1>零号城</h1>
+        <h1>曼哈顿</h1>
         <p className="rail-header__sub">六区共管 · 城市协调人终端</p>
         <div className="rail-stability">
           <div>
@@ -74,6 +74,7 @@ export default function DistrictRail({
           <span><i className="legend-threat" /> 威胁等级</span>
         </div>
         <p>双击城区可聚焦地图。所有数值为协调人估算。</p>
+        <p className="rail-attribution">建筑 / 街道数据：NYC Open Data · DCP</p>
         <div className="rail-signature">
           <span>AUTHORITY LINK</span>
           <strong>SECURE / 7A</strong>

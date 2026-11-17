@@ -5,7 +5,7 @@ import DistrictInspector from './components/DistrictInspector.jsx'
 import CommandPanels from './components/CommandPanels.jsx'
 import MapCanvas from './map/MapCanvas.jsx'
 import { getCityData } from './map/generator.js'
-import { CITY, DISTRICTS, INCIDENTS, SQUADS, TACTICS } from './data/city.js'
+import { CITY, DISTRICTS, INCIDENTS, SQUADS, TACTICS, WORLD } from './data/city.js'
 
 const initialDistricts = DISTRICTS.map((district, index) => ({
   ...district,
@@ -398,13 +398,13 @@ export default function App() {
         <div className="boot-screen">
           <div className="boot-screen__grid" aria-hidden="true" />
           <div className="boot-screen__inner">
-            <span className="boot-screen__mark">CZ</span>
-            <p className="hud-label">CITY ZERO / URBAN OPERATIONS</p>
-            <h1>零号城</h1>
-            <p>正在构建城市网格 · {data.stats.buildings.toLocaleString('zh-CN')} 栋建筑</p>
+            <span className="boot-screen__mark">NY</span>
+            <p className="hud-label">MANHATTAN / URBAN OPERATIONS</p>
+            <h1>曼哈顿</h1>
+            <p>正在载入纽约开放数据 · {data.stats.buildings.toLocaleString('zh-CN')} 栋真实建筑</p>
             <div className="boot-screen__bar"><i /></div>
             <div className="boot-screen__meta">
-              <span>GRID 24 × 18 KM</span>
+              <span>GRID {Math.round(WORLD.width / 100) / 10} × {Math.round(WORLD.height / 100) / 10} KM</span>
               <span>SECTOR LINK 06</span>
               <span>AUTHORITY 7A</span>
             </div>
