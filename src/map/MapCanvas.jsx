@@ -201,7 +201,7 @@ const MapCanvas = forwardRef(function MapCanvas(
     if (!wrap || !canvas || !mini) return
     const resize = () => {
       const rect = wrap.getBoundingClientRect()
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.25)
       const width = Math.max(1, rect.width)
       const height = Math.max(1, rect.height)
       sizeRef.current = { width, height, dpr }
@@ -306,7 +306,7 @@ const MapCanvas = forwardRef(function MapCanvas(
           }
         }
         candidates.sort((a, b) => a.distance - b.distance)
-        for (const candidate of candidates.slice(0, 8)) {
+        for (const candidate of candidates.slice(0, 4)) {
           streamRef.current.loading.add(candidate.key)
           fetchTile(candidate.tx, candidate.ty, controller.signal)
             .then((tile) => {
@@ -339,7 +339,7 @@ const MapCanvas = forwardRef(function MapCanvas(
           }
         }
         candidates.sort((a, b) => a.distance - b.distance)
-        for (const candidate of candidates.slice(0, 12)) {
+        for (const candidate of candidates.slice(0, 6)) {
           streamRef.current.roadLoading.add(candidate.key)
           fetchRoadTile(candidate.tx, candidate.ty, controller.signal)
             .then((roads) => {
@@ -357,7 +357,7 @@ const MapCanvas = forwardRef(function MapCanvas(
       }
     }
 
-    const timer = window.setInterval(loadVisible, 400)
+    const timer = window.setInterval(loadVisible, 500)
     loadVisible()
     return () => {
       stopped = true

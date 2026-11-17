@@ -294,7 +294,7 @@ function drawRivers(ctx, camera, width, height, data) {
 }
 
 function drawCommunities(ctx, camera, width, height, data, scale, fast = false) {
-  if (fast || scale < 0.09 || !data.communities) return
+  if (fast || scale < 0.9 || !data.communities) return
   ctx.save()
   for (const community of data.communities) {
     ctx.beginPath()
@@ -324,11 +324,53 @@ function drawCommunities(ctx, camera, width, height, data, scale, fast = false) 
   ctx.restore()
 }
 
+const PARK_NAME_ZH = {
+  'Central Park': '中央公园', 'Bryant Park': '布莱恩特公园', 'Prospect Park': '展望公园',
+  'Wingate Park': '温盖特公园', 'Pelham Bay Park': '佩勒姆湾公园', 'Freshkills Park': '弗雷什基尔斯公园',
+  'Marine Park': '海洋公园', 'Bronx Park': '布朗克斯公园', 'Van Cortlandt Park': '范科特兰公园',
+  'Alley Pond Park': '巷塘公园', 'Ferry Point Park': '渡口角公园', 'Willowbrook Park': '威洛布鲁克公园',
+  'Silver Lake Park': '银湖公园', 'Franklin D. Roosevelt Boardwalk and Beach': '罗斯福海滨步道',
+  'Great Kills Park': '大基尔斯公园', 'Dyker Beach Park': '戴克海滩公园', 'Inwood Hill Park': '因伍德山公园',
+  'Coney Island Beach & Boardwalk': '康尼岛海滩与步道', 'Soundview Park': '桑德维尤公园',
+  'Clove Lakes Park': '克洛夫湖公园', 'Conference House Park': '会议大厦公园',
+  'Rockaway Beach and Boardwalk': '洛克威海滩与步道', 'Forest Park': '森林公园', 'Highland Park': '高地公园',
+  "Randall's Island Park": '兰德尔岛公园', 'Flushing Meadows Corona Park': '法拉盛草原可乐娜公园',
+  'Astoria Park': '阿斯托利亚公园', 'Battery Park': '炮台公园', 'Washington Square Park': '华盛顿广场公园',
+  'Tompkins Square Park': '汤普金斯广场公园', 'Madison Square Park': '麦迪逊广场公园',
+  'Union Square Park': '联合广场公园', 'Hudson River Park': '哈德逊河公园',
+  'Brooklyn Bridge Park': '布鲁克林大桥公园', 'Governors Island': '总督岛', 'Liberty Island': '自由岛',
+  'Ellis Island': '埃利斯岛', 'The High Line': '高线公园', 'Riverside Park': '河滨公园',
+  'Morningside Park': '晨边公园', 'St. Nicholas Park': '圣尼古拉斯公园', 'Marcus Garvey Park': '马库斯加维公园',
+  'Sara D. Roosevelt Park': '萨拉罗斯福公园', 'City Hall Park': '市政厅公园', 'Collect Pond Park': '收集池公园',
+  'Bowling Green': '鲍灵格林', 'Cadman Plaza Park': '卡德曼广场公园', 'Fort Greene Park': '格林堡公园',
+  'McCarren Park': '麦卡伦公园', 'McKinley Park': '麦金利公园', 'Sunset Park': '日落公园',
+  'Green-Wood Cemetery': '绿荫公墓', 'Calvary Cemetery': '各各他公墓', 'Holy Cross Cemetery': '圣十字公墓',
+  'Woodlawn Cemetery': '伍德劳恩公墓', 'Forest Hills Gardens': '森林小丘花园',
+}
+
+const PARK_WORD_ZH = [
+  ['Golf Course', '高尔夫球场'], ['Playground', '游乐场'], ['Boardwalk', '步道'], ['Cemetery', '公墓'],
+  ['Gardens', '花园'], ['Garden', '花园'], ['Triangle', '三角绿地'], ['Meadow', '草甸'], ['Fields', '运动场'],
+  ['Field', '运动场'], ['Beach', '海滩'], ['Plaza', '广场'], ['Square', '广场'], ['Parkway', '公园道'],
+  ['Park', '公园'], ['Green', '绿地'], ['Point', '角'], ['Island', '岛'], ['River', '河'], ['Lake', '湖'],
+  ['Pond', '池塘'], ['Woods', '林地'], ['Marsh', '湿地'],
+]
+
+function localizeParkName(name) {
+  if (!name) return '公园'
+  if (PARK_NAME_ZH[name]) return PARK_NAME_ZH[name]
+  let result = name
+  for (const [en, zh] of PARK_WORD_ZH) result = result.replaceAll(en, zh)
+  result = result.replace(/[A-Za-z]/g, '').replace(/[&,.'’]/g, '').replace(/\s+/g, ' ').trim()
+  if (!result) return '公园'
+  return result.replace(/公园公园/g, '公园')
+}
+
 function drawParks(ctx, camera, width, height, data, fast = false) {
   const scale = camera.scale
   for (const park of data.parks) {
     if (fast && (park.area || 0) < 50000) continue
-    if (scale < 0.5 && (park.area || 0) < 12000) continue
+    if (scale < 1.2 && (park.area || 0) < 12000) continue
     ctx.save()
     ctx.beginPath()
     tracePolygon(ctx, camera, width, height, park.poly)
@@ -445,17 +487,39 @@ function drawParks(ctx, camera, width, height, data, fast = false) {
       }
     }
 
-    if (scale > 0.16 && park.id !== 'reservoir') {
-      const p = worldToScreen(camera, width, height, park.centroid[0], park.centroid[1])
-      ctx.font = '500 11px "Noto Sans SC", "Microsoft YaHei", sans-serif'
-      ctx.textAlign = 'center'
-      ctx.fillStyle = 'rgba(168, 232, 196, 0.72)'
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)'
-      ctx.shadowBlur = 8
-      ctx.fillText(park.name, p.x, p.y)
-    }
     ctx.restore()
   }
+}
+
+function drawParkLabels(ctx, camera, width, height, data, scale) {
+  if (scale < 0.32) return
+  const parks = []
+  for (const park of data.parks) {
+    if ((park.area || 0) < 3000) continue
+    const p = worldToScreen(camera, width, height, park.centroid[0], park.centroid[1])
+    if (p.x < 40 || p.x > width - 40 || p.y < 20 || p.y > height - 20) continue
+    parks.push({ park, p })
+  }
+  parks.sort((a, b) => (b.park.area || 0) - (a.park.area || 0))
+  ctx.save()
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  for (const { park, p } of parks.slice(0, 20)) {
+    const label = localizeParkName(park.name)
+    if (!label) continue
+    ctx.font = '600 11px "Noto Sans SC", "Microsoft YaHei", sans-serif'
+    const metrics = ctx.measureText(label)
+    const w = metrics.width + 14
+    const h = 20
+    ctx.fillStyle = 'rgba(4, 20, 14, 0.78)'
+    ctx.fillRect(p.x - w / 2, p.y - h / 2, w, h)
+    ctx.strokeStyle = 'rgba(120, 210, 160, 0.34)'
+    ctx.lineWidth = 0.8
+    ctx.strokeRect(p.x - w / 2, p.y - h / 2, w, h)
+    ctx.fillStyle = '#c8f2d8'
+    ctx.fillText(label, p.x, p.y)
+  }
+  ctx.restore()
 }
 
 
@@ -1002,14 +1066,14 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId, pass 
   const bounds = cameraBounds(camera, width, height)
   const buildings = precomputed || getVisibleBuildings(data, bounds)
   const detailed = scale > 0.34
-  const extruded = scale > 0.46
-  const veryDetailed = scale > 1.05
+  const extruded = scale > 1.1
+  const veryDetailed = scale > 1.45
   const ordered = buildings
   const districtColors = new Map(data.districts.map((district) => [district.id, district.color]))
 
   // Ground shadows. Keeping these in a separate pass makes the city read as a
   // collection of volumes instead of a flat colour field.
-  if (detailed && pass !== 'body' && scale > 0.55) {
+  if (detailed && pass !== 'body' && scale > 1.1) {
     ctx.save()
     for (const b of buildings) {
       if (b.height < 10) continue
@@ -1068,7 +1132,7 @@ function drawBuildings(ctx, camera, width, height, data, scale, hoveredId, pass 
     const accent = districtColors.get(b.district) || '#53e0d0'
 
     if (b.points) {
-      if (pass === 'shadows' || scale < 0.55 || (fast && scale < 0.75)) {
+      if (pass === 'shadows' || scale < 0.9 || fast) {
         const [minX, minY, maxX, maxY] = b.bbox
         const a = worldToScreen(camera, width, height, minX, minY)
         const c = worldToScreen(camera, width, height, maxX, maxY)
@@ -1682,7 +1746,7 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
   ctx.fillRect(0, 0, width, height)
 
   drawLand(ctx, camera, width, height, data)
-  if (options.grid !== false && scale > 0.5) {
+  if (options.grid !== false && scale > 1.6) {
     for (const district of data.districts) {
       ctx.save()
       ctx.beginPath()
@@ -1706,7 +1770,7 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
     if (options.districts !== false) drawDistrictOutlines(ctx, camera, width, height, data, options.selectedDistrict)
   } else {
     if (hasBlocks) drawBlockGround(ctx, camera, width, height, data)
-    if (scale < 0.55) {
+    if (scale < 0.9) {
       drawBuildings(ctx, camera, width, height, data, scale, options.hoveredBuilding, 'body', visibleBuildings, options.fast)
       drawRoads(ctx, camera, width, height, data, scale, options.fast)
     } else {
@@ -1719,6 +1783,7 @@ export function drawMap(ctx, data, camera, width, height, options = {}) {
     }
   }
 
+  drawParkLabels(ctx, camera, width, height, data, scale)
   drawRamps(ctx, camera, width, height, data, scale)
   drawExpressways(ctx, camera, width, height, data, scale)
   drawBridges(ctx, camera, width, height, data, scale)
